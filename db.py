@@ -7,7 +7,7 @@ def get_connection():
         host=st.secrets["mysql"]["host"],
         user=st.secrets["mysql"]["user"],
         password=st.secrets["mysql"]["password"],
-        database=st.secrets["mysql"]["database"]
+        database=st.secrets["mysql"]["database"],  # <-- coma al final
         autocommit=True,
         ssl_mode="VERIFY_IDENTITY",
         ssl={ "ca": "/etc/ssl/certs/ca-certificates.crt" }
@@ -20,4 +20,3 @@ def obtener_productos_por_sucursal(sucursal):
     productos = cursor.fetchall()
     conn.close()
     return productos
-
