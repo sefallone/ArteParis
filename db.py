@@ -1,12 +1,15 @@
 import mysql.connector
 
+import mysql.connector
+import streamlit as st
+
 def get_connection():
     return mysql.connector.connect(
-        host="localhost",           # Cambia si usas otro servidor
-        user="tu_usuario_mysql",    # Cambia por tu usuario
-        password="tu_contraseña",   # Cambia por tu contraseña
-        database="arte_paris"
-    )
+        host=st.secrets["mysql"]["host"],
+        user=st.secrets["mysql"]["user"],
+        password=st.secrets["mysql"]["password"],
+        database=st.secrets["mysql"]["database"]
+)
 
 def obtener_productos_por_sucursal(sucursal):
     conn = get_connection()
