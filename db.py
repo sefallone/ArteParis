@@ -4,18 +4,17 @@ import streamlit as st
 def get_connection():
     try:
         conn = mysql.connector.connect(
-        host=st.secrets["mysql"]["host"],
-        user=st.secrets["mysql"]["user"],
-        password=st.secrets["mysql"]["password"],
-        database=st.secrets["mysql"]["database"],
-        autocommit=True,
-        ssl_verify_cert=True
-    )
-
+            host=st.secrets["mysql"]["host"],
+            user=st.secrets["mysql"]["user"],
+            password=st.secrets["mysql"]["password"],
+            database=st.secrets["mysql"]["database"],
+            autocommit=True
+        )
         return conn
-    except mysql.connector.Error as err:
-        st.error(f"Error al conectar a la base de datos: {err}")
+    except Exception as e:
+        st.error(f"Error conexión sin SSL: {e}")
         raise
+
 
 def obtener_productos_por_sucursal(sucursal):
     conn = get_connection()
