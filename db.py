@@ -8,6 +8,9 @@ def get_connection():
         user=st.secrets["mysql"]["user"],
         password=st.secrets["mysql"]["password"],
         database=st.secrets["mysql"]["database"]
+        autocommit=True,
+        ssl_mode="VERIFY_IDENTITY",
+        ssl={ "ca": "/etc/ssl/certs/ca-certificates.crt" }
     )
 
 def obtener_productos_por_sucursal(sucursal):
