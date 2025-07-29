@@ -1,15 +1,16 @@
 import streamlit as st
-from db import obtener_productos_por_sucursal
 
 def main():
-    st.title("📦 Inventario - Arte París")
-    
-    sucursal = st.selectbox("Selecciona la sucursal", ["centro", "unicentro"])
-    
-    # Llama a la función para obtener productos aquí, dentro de main
+    st.title("Prueba de conexión a secretos")
+
+    # Mostrar lo que hay en st.secrets para debug
+    st.write("Secrets:", st.secrets)
+
+    # Ahora llama a la función que usa st.secrets
+    from db import obtener_productos_por_sucursal
+    sucursal = st.selectbox("Sucursal", ["centro", "unicentro"])
     productos = obtener_productos_por_sucursal(sucursal)
-    
-    st.dataframe(productos, use_container_width=True)
+    st.dataframe(productos)
 
 if __name__ == "__main__":
     main()
