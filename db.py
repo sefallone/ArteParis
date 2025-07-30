@@ -3,7 +3,7 @@ import sqlite3
 DB_FILE = "inventario.db"
 
 def get_connection():
-    return sqlite3.connect(DB_FILE, check_same_thread=False)
+    return sqlite3.connect("inventario.db", check_same_thread=False)
 
 def crear_tabla_productos():
     conn = get_connection()
@@ -21,6 +21,7 @@ def crear_tabla_productos():
     conn.commit()
     cursor.close()
     conn.close()
+
 
 def agregar_producto(sucursal, nombre, cantidad, precio_costo, precio_venta):
     conn = get_connection()
