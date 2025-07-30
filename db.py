@@ -1,32 +1,23 @@
+import psycopg2
 import streamlit as st
-import mysql.connector
 
-st.title("Conexión a la Base de Datos")
+# Configura tus datos de conexión aquí directamente
+SUPABASE_HOST = "tu-host.supabase.co"
+SUPABASE_DB = "postgres"
+SUPABASE_USER = "tu-usuario"
+SUPABASE_PASSWORD = "tu-contraseña"
+SUPABASE_PORT = 5432
 
-host = st.text_input("Host", value="aws-us-east-2.connect.psdb.cloud")
-user = st.text_input("Usuario", value="tu_usuario")
-password = st.text_input("Contraseña", type="password")
-database = st.text_input("Base de datos", value="arte_paris")
-
-if st.button("Conectar"):
+def get_connection():
     try:
-        conn = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database,
-            ssl_ca="/etc/ssl/certs/ca-certificates.crt"
+        conn = psycopg2.connect(
+            host=SUPABASE_HOST,
+            database=SUPABASE_DB,
+            user=SUPABASE_USER,
+            password=SUPABASE_PASSWORD,
+            port=SUPABASE_PORT
         )
-        st.success("✅ Conexión exitosa")
+        return conn
     except Exception as e:
-        st.error("❌ Error al conectar:")
-        st.error(e)
-
-
-
-conn = get_connection()
-cursor = conn.cursor()
-cursor.execute("SHOW TABLES")
-tables = cursor.fetchall()
-st.write("Tablas en la base de datos:", tables)
-
+        st.error(f"❌ Error al conectar: {e}")
+        return None
