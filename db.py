@@ -1,23 +1,37 @@
+# db.py
 import psycopg2
 import streamlit as st
 
-# Configura tus datos de conexión aquí directamente
-SUPABASE_HOST = "tu-host.supabase.co"
-SUPABASE_DB = "postgres"
-SUPABASE_USER = "tu-usuario"
-SUPABASE_PASSWORD = "tu-contraseña"
-SUPABASE_PORT = 5432
-
 def get_connection():
-    try:
-        conn = psycopg2.connect(
-            host=SUPABASE_HOST,
-            database=SUPABASE_DB,
-            user=SUPABASE_USER,
-            password=SUPABASE_PASSWORD,
-            port=SUPABASE_PORT
-        )
-        return conn
-    except Exception as e:
-        st.error(f"❌ Error al conectar: {e}")
-        return None
+    return psycopg2.connect(
+        host=st.secrets["postgres"]["host"],
+        user=st.secrets["postgres"]["user"],
+        password=st.secrets["postgres"]["password"],
+        database=st.secrets["postgres"]["database"],
+        port=st.secrets["postgres"]["port"]
+    )
+
+def crear_tabla_productos():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS productos (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(100) NOT NULL,
+        cantidad INT NOT NULL,
+        precio_costo NUMERIC(10,2),
+        precio_venta NUMERIC(10,2)
+    );
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def obtener_productos():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM productos;")
+    resultados = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return resultados
