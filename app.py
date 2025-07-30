@@ -1,13 +1,48 @@
 import streamlit as st
-from db import crear_tabla_productos, agregar_producto, obtener_productos_por_sucursal, actualizar_producto, eliminar_producto
+from db import (
+    crear_tabla_productos,
+    agregar_producto,
+    obtener_productos_por_sucursal,
+    actualizar_producto,
+    eliminar_producto
+)
 
 def main():
     st.title("Inventario Arte París")
     crear_tabla_productos()
 
-    sucursal = st.selectbox("Selecciona la sucursal", ["centro", "unicentro"])
+    sucursal = st.selectbox("Sucursal", ["centro", "unicentro"])
 
-    st.subheader("Agregar nuevo producto")
+    st.subheader("🔍 Buscar producto por nombre")
+    nombre_busqueda = st.text_input("Nombre del producto a buscar")
+
+    if nombre_busqueda:
+        productos = obtener_productos_por_sucursal(sucursal)
+        encontrados = [p for p in productos if nombre_busqueda.lower() in p[2].lower()]
+        
+        if encontrados:
+            for p in encontrados:
+                with st.expander(f"{p[2].capitalize()} (ID: {p[0]})"):
+                    nombre_edit = st.text_input("Nombre", value=p[2], key=f"bn_{p[0]}")
+                    cantidad_edit = st.number_input("Cantidad", value=p[3], key=f"bc_{p[0]}")
+                    costo_edit = st.number_input("Precio costo", value=p[4], key=f"bpc_{p[0]}")
+                    venta_edit = st.number_input("Precio venta", value=p[5], key=f"bpv_{p[0]}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Actualizar", key=f"bupd_{p[0]}"):
+                            actualizar_producto(p[0], nombre_edit, cantidad_edit, costo_edit, venta_edit)
+                            st.success("Producto actualizado.")
+                            st.experimental_rerun()
+                    with col2:
+                        if st.button("Eliminar", key=f"bdel_{p[0]}"):
+                            eliminar_producto(p[0])
+                            st.warning("Producto eliminado.")
+                            st.experimental_rerun()
+        else:
+            st.info("Producto no encontrado en esta sucursal.")
+
+    st.subheader("➕ Agregar nuevo producto")
     with st.form("agregar_form"):
         nombre = st.text_input("Nombre del producto")
         cantidad = st.number_input("Cantidad", min_value=0, step=1)
@@ -17,13 +52,14 @@ def main():
         if submitted and nombre:
             agregar_producto(sucursal, nombre, cantidad, precio_costo, precio_venta)
             st.success(f"Producto '{nombre}' agregado con éxito.")
+            st.experimental_rerun()
 
-    st.subheader(f"Inventario de sucursal: {sucursal.capitalize()}")
+    st.subheader(f"📦 Inventario completo - {sucursal.capitalize()}")
     productos = obtener_productos_por_sucursal(sucursal)
 
     if productos:
         for p in productos:
-            with st.expander(f"{p[1].capitalize()} (ID: {p[0]})"):
+            with st.expander(f"{p[2].capitalize()} (ID: {p[0]})"):
                 nombre_edit = st.text_input("Nombre", value=p[2], key=f"n_{p[0]}")
                 cantidad_edit = st.number_input("Cantidad", value=p[3], key=f"c_{p[0]}")
                 costo_edit = st.number_input("Precio costo", value=p[4], key=f"pc_{p[0]}")
@@ -45,3 +81,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
