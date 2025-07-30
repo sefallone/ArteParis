@@ -225,7 +225,7 @@ def modulo_inventario():
                 productos = productos[productos[columna_stock] > 0]
             
             # Mostrar inventario
-            st.dataframe(productos.drop(columns=['id', 'fecha_creacion', 'fecha_actualizacion']), 
+            st.dataframe(productos.drop(columns=['id', 'fecha_creacion', 'fecha_actualizacion']))
             
             # Resumen de inventario
             st.subheader("Resumen de Inventario")
