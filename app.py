@@ -1,5 +1,5 @@
 import streamlit as st
-#from db import obtener_productos_por_sucursal
+from db import obtener_productos_por_sucursal
 
 def main():
     st.title("Inventario Arte París")
