@@ -50,9 +50,9 @@ def initialize_firebase():
     if firebase_config: # Solo intentar inicializar Firebase si tenemos alguna configuración
         if not firebase_admin._apps: # Inicializar solo si no está ya inicializado
             try:
-                # Usa credentials.AnonymousCredentials() para inicializar si no se requiere un usuario autenticado específico
-                # o si la autenticación se gestionará por separado.
-                firebase_admin.initialize_app(credentials.AnonymousCredentials(), options=firebase_config)
+                # Se inicializa Firebase Admin SDK directamente con la configuración.
+                # No se usa credentials.AnonymousCredentials() ya que no es el tipo de credencial adecuado para Admin SDK.
+                firebase_admin.initialize_app(options=firebase_config)
                 st.success("Firebase inicializado correctamente.")
             except ValueError:
                 st.warning("Firebase ya ha sido inicializado.")
