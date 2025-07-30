@@ -78,7 +78,8 @@ def eliminar_producto(product_id):
 
 def obtener_productos(sucursal):
     conn = get_db_connection()
-    df = pd.read_sql("SELECT * FROM productos WHERE sucursal=?", conn, params=(sucursal,))
+    query = "SELECT * FROM productos WHERE sucursal=?"
+    df = pd.read_sql_query(query, conn, params=(sucursal,))
     conn.close()
     return df
 
@@ -121,7 +122,8 @@ def registrar_venta(sucursal, producto_id, cantidad, forma_pago):
 
 def obtener_ventas(sucursal):
     conn = get_db_connection()
-    df = pd.read_sql("SELECT * FROM ventas WHERE sucursal=?", conn, params=(sucursal,))
+    query = "SELECT * FROM ventas WHERE sucursal=?"
+    df = pd.read_sql_query(query, conn, params=(sucursal,))
     conn.close()
     return df
 
