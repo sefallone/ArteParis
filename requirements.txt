@@ -1,3 +1,6 @@
-psycopg2
-streamlit
-db
+streamlit==1.24.1
+mysql-connector-python==8.0.33
+pandas
+plotly
+python-dotenv
+supabase
