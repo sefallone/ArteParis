@@ -11,6 +11,7 @@ def main():
         tablas = cursor.fetchall()
         st.success("✅ Conexión exitosa a la base de datos")
         st.write("Tablas en la base de datos:", tablas)
+        
     except Exception:
         st.error("❌ Conexión fallida")
 
