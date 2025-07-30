@@ -9,11 +9,11 @@ def get_connection():
             user=st.secrets["mysql"]["user"],
             password=st.secrets["mysql"]["password"],
             database=st.secrets["mysql"]["database"],
-            ssl_ca="/etc/ssl/certs/ca-certificates.crt"  # Certificado del sistema
+            ssl_ca="/etc/ssl/certs/ca-certificates.crt",  # Certificado raíz del sistema (válido en Streamlit Cloud)
+            ssl_verify_cert=True
         )
         return conn
     except Exception:
         st.error("❌ Error al conectar a la base de datos:")
         st.error(traceback.format_exc())
         raise
-
