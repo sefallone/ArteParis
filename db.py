@@ -5,8 +5,8 @@ import traceback
 # Configuración directa (reemplaza con tus valores reales)
 DB_CONFIG = {
     "host": "aws-us-east-2.connect.psdb.cloud",
-    "user": "97fbg4jyqaaqxzxyupng",
-    "password": "pscale_pw_luBSHFVPAeZLuC2IkJQtZJaWRbvh2KaURxDMlxlEOWX",
+    "user": "a8vdrmkrp37a1bsusss2",
+    "password": "pscale_pw_WlrkTEL5kVinSjZ0K0I6Gi8V0UONxMywzp1LGlmeFhY",
     "database": "arte_paris",
     "ssl_ca": "/etc/ssl/certs/ca-certificates.crt"
 }
