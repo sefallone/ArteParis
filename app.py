@@ -3,57 +3,68 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import firebase_admin
-from firebase_admin import credentials, firestore, auth # Importar auth para la autenticación
-import os # Importar el módulo os
+from firebase_admin import credentials, firestore, auth
+import os
+import json # Necesario para json.loads
 
 # --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
 @st.cache_resource
 def initialize_firebase():
-    # Las variables __firebase_config y __initial_auth_token son proporcionadas por el entorno de Canvas.
-    # NO necesitas un archivo de credenciales JSON.
-    
-    # Asegúrate de que __firebase_config y __initial_auth_token estén definidos en el entorno.
-    # Si ejecutas localmente sin el entorno de Canvas, necesitarías proporcionar valores dummy
-    # o un método de autenticación diferente (ej. credenciales de servicio).
     firebase_config = {}
     initial_auth_token = None
+    db_client = None 
 
-    if '__firebase_config' in st.session_state:
+    # 1. Intenta obtener la configuración de Streamlit Secrets (para Streamlit Cloud)
+    if "firebase" in st.secrets:
+        firebase_config = st.secrets["firebase"].to_dict() # Convierte a dict si es un SecretDict
+        # Asume que initial_auth_token también podría estar en secrets si es necesario
+        initial_auth_token = st.secrets.get("initial_auth_token") 
+        st.success("Firebase: Configuración y token obtenidos de Streamlit Secrets.")
+    # 2. Fallback para el entorno de Canvas (si aplica)
+    elif '__firebase_config' in st.session_state and '__initial_auth_token' in st.session_state:
         firebase_config = st.session_state['__firebase_config']
-    elif 'FIREBASE_CONFIG' in os.environ: # Fallback para entornos que usen variables de entorno
-        # Asegúrate de que 'json' también esté importado si usas esta rama
-        import json 
-        firebase_config = json.loads(os.environ['FIREBASE_CONFIG'])
+        initial_auth_token = st.session_state['__initial_auth_token']
+        st.success("Firebase: Configuración y token obtenidos del entorno Canvas.")
     else:
-        st.error("Error: FIREBASE_CONFIG no encontrado. Asegúrate de que la aplicación se ejecuta en un entorno compatible o proporciona la configuración.")
+        # --- Configuración de ejemplo para desarrollo local (NO PERSISTENTE) ---
+        st.warning("Advertencia: No se encontró la configuración de Firebase en `st.secrets` ni en el entorno Canvas.")
+        st.warning("La aplicación se ejecutará con una configuración de Firebase de ejemplo (solo para UI).")
+        st.warning("Los datos NO serán persistentes en tu proyecto de Firebase real.")
+        st.warning("Para conectar a tu Firebase real en Streamlit Cloud, añade tus credenciales a `.streamlit/secrets.toml`.")
+        st.code("""
+        # Ejemplo de .streamlit/secrets.toml
+        # [firebase]
+        # apiKey = "TU_API_KEY"
+        # authDomain = "TU_AUTH_DOMAIN"
+        # projectId = "TU_PROJECT_ID"
+        # storageBucket = "TU_STORAGE_BUCKET"
+        # messagingSenderId = "TU_MESSAGING_SENDER_ID"
+        # appId = "TU_APP_ID"
+        #
+        # # Si usas Firebase Authentication y necesitas un token inicial:
+        # # initial_auth_token = "TU_TOKEN_DE_AUTENTICACION_INICIAL_SI_LO_NECESITAS"
+        """)
+        # Retorna None, None para indicar que Firebase no está configurado correctamente para operaciones de DB
         return None, None
 
-    if '__initial_auth_token' in st.session_state:
-        initial_auth_token = st.session_state['__initial_auth_token']
-    elif 'INITIAL_AUTH_TOKEN' in os.environ: # Fallback para entornos que usen variables de entorno
-        initial_auth_token = os.environ['INITIAL_AUTH_TOKEN']
-    else:
-        # Para desarrollo local sin token, puedes optar por signInAnonymously si es apropiado
-        # o pedir al usuario que inicie sesión. Para este ejemplo, asumimos que el token existe.
-        st.warning("Advertencia: INITIAL_AUTH_TOKEN no encontrado. La autenticación podría fallar.")
-        # En un entorno real, aquí podrías redirigir a un login o usar signInAnonymously
-
-    if not firebase_admin._apps: # Inicializar solo si no está ya inicializado
-        try:
-            # Usar un AppCheckToken si está disponible, si no, inicializar sin él.
-            # En el entorno de Canvas, las credenciales se manejan automáticamente.
-            # No se necesita un archivo de credenciales de servicio JSON aquí.
-            firebase_admin.initialize_app()
-            st.success("Firebase inicializado correctamente.")
-        except ValueError:
-            st.warning("Firebase ya ha sido inicializado.")
-        except Exception as e:
-            st.error(f"Error al inicializar Firebase: {e}")
-            return None, None
+    if firebase_config: # Solo intentar inicializar Firebase si tenemos alguna configuración
+        if not firebase_admin._apps: # Inicializar solo si no está ya inicializado
+            try:
+                # Usa credentials.AnonymousCredentials() para inicializar si no se requiere un usuario autenticado específico
+                # o si la autenticación se gestionará por separado.
+                firebase_admin.initialize_app(credentials.AnonymousCredentials(), options=firebase_config)
+                st.success("Firebase inicializado correctamente.")
+            except ValueError:
+                st.warning("Firebase ya ha sido inicializado.")
+            except Exception as e:
+                st.error(f"Error al inicializar Firebase: {e}")
+                return None, None
+        
+        db_client = firestore.client()
     
-    db = firestore.client()
-    return db, initial_auth_token
+    return db_client, initial_auth_token
 
+# Variables globales para el cliente de DB y el token de autenticación
 db, initial_auth_token = initialize_firebase()
 
 # Configuración inicial de Streamlit
@@ -61,15 +72,13 @@ st.set_page_config(page_title="Pastelería-Café", layout="wide")
 
 # --- Funciones de base de datos (Firestore) ---
 
-# No necesitamos init_db() para crear tablas como en SQLite. Firestore crea colecciones en la primera escritura.
-# Sin embargo, podemos usar esta función para asegurar que Firestore esté listo.
 @st.cache_resource
 def get_firestore_db():
     # Esta función asegura que el cliente de Firestore se obtenga y se cachee.
     # La inicialización de Firebase se maneja en initialize_firebase()
-    if db is None:
-        st.error("Firestore no está disponible. Revisa la inicialización de Firebase.")
-        st.stop()
+    if db is None: # Usa la variable global 'db'
+        st.error("Firestore no está disponible. Asegúrate de que Firebase se inicializó correctamente.")
+        st.stop() # Detiene la ejecución si Firestore no está disponible
     return db
 
 # Funciones para productos
