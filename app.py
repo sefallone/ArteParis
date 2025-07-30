@@ -1,144 +1,223 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 from datetime import datetime
 import uuid
+import firebase_admin
+from firebase_admin import credentials, firestore, auth # Importar auth para la autenticación
 
-# Configuración inicial
+# --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
+@st.cache_resource
+def initialize_firebase():
+    # Las variables __firebase_config y __initial_auth_token son proporcionadas por el entorno de Canvas.
+    # NO necesitas un archivo de credenciales JSON.
+    
+    # Asegúrate de que __firebase_config y __initial_auth_token estén definidos en el entorno.
+    # Si ejecutas localmente sin el entorno de Canvas, necesitarías proporcionar valores dummy
+    # o un método de autenticación diferente (ej. credenciales de servicio).
+    firebase_config = {}
+    initial_auth_token = None
+
+    if '__firebase_config' in st.session_state:
+        firebase_config = st.session_state['__firebase_config']
+    elif 'FIREBASE_CONFIG' in os.environ: # Fallback para entornos que usen variables de entorno
+        firebase_config = json.loads(os.environ['FIREBASE_CONFIG'])
+    else:
+        st.error("Error: FIREBASE_CONFIG no encontrado. Asegúrate de que la aplicación se ejecuta en un entorno compatible o proporciona la configuración.")
+        return None, None
+
+    if '__initial_auth_token' in st.session_state:
+        initial_auth_token = st.session_state['__initial_auth_token']
+    elif 'INITIAL_AUTH_TOKEN' in os.environ: # Fallback para entornos que usen variables de entorno
+        initial_auth_token = os.environ['INITIAL_AUTH_TOKEN']
+    else:
+        # Para desarrollo local sin token, puedes optar por signInAnonymously si es apropiado
+        # o pedir al usuario que inicie sesión. Para este ejemplo, asumimos que el token existe.
+        st.warning("Advertencia: INITIAL_AUTH_TOKEN no encontrado. La autenticación podría fallar.")
+        # En un entorno real, aquí podrías redirigir a un login o usar signInAnonymously
+
+    if not firebase_admin._apps: # Inicializar solo si no está ya inicializado
+        try:
+            # Usar un AppCheckToken si está disponible, si no, inicializar sin él.
+            # En el entorno de Canvas, las credenciales se manejan automáticamente.
+            # No se necesita un archivo de credenciales de servicio JSON aquí.
+            firebase_admin.initialize_app()
+            st.success("Firebase inicializado correctamente.")
+        except ValueError:
+            st.warning("Firebase ya ha sido inicializado.")
+        except Exception as e:
+            st.error(f"Error al inicializar Firebase: {e}")
+            return None, None
+    
+    db = firestore.client()
+    return db, initial_auth_token
+
+db, initial_auth_token = initialize_firebase()
+
+# Configuración inicial de Streamlit
 st.set_page_config(page_title="Pastelería-Café", layout="wide")
 
-# Base de datos SQLite
-# Usamos st.cache_resource para asegurar que la base de datos se inicialice solo una vez
+# --- Funciones de base de datos (Firestore) ---
+
+# No necesitamos init_db() para crear tablas como en SQLite. Firestore crea colecciones en la primera escritura.
+# Sin embargo, podemos usar esta función para asegurar que Firestore esté listo.
 @st.cache_resource
-def init_db():
-    conn = sqlite3.connect('pasteleria.db')
-    c = conn.cursor()
-    
-    # Tabla de productos (ahora con sucursal)
-    c.execute('''CREATE TABLE IF NOT EXISTS productos
-                 (id TEXT PRIMARY KEY, 
-                  nombre TEXT, 
-                  categoria TEXT, 
-                  precio REAL, 
-                  costo REAL, 
-                  stock INTEGER,
-                  sucursal TEXT,
-                  fecha_creacion TEXT,
-                  fecha_actualizacion TEXT)''')
-    
-    # Tabla de ventas
-    c.execute('''CREATE TABLE IF NOT EXISTS ventas
-                 (id TEXT PRIMARY KEY,
-                  sucursal TEXT,
-                  producto_id TEXT,
-                  cantidad INTEGER,
-                  precio_unitario REAL,
-                  impuesto REAL,
-                  total REAL,
-                  forma_pago TEXT,
-                  fecha TEXT,
-                  FOREIGN KEY(producto_id) REFERENCES productos(id))''')
-    
-    conn.commit()
-    conn.close()
-    st.success("Base de datos inicializada correctamente.") # Mensaje de confirmación
-
-# Llamar a la función de inicialización de la base de datos
-init_db()
-
-# Funciones de base de datos
-def get_db_connection():
-    return sqlite3.connect('pasteleria.db')
+def get_firestore_db():
+    # Esta función asegura que el cliente de Firestore se obtenga y se cachee.
+    # La inicialización de Firebase se maneja en initialize_firebase()
+    if db is None:
+        st.error("Firestore no está disponible. Revisa la inicialización de Firebase.")
+        st.stop()
+    return db
 
 # Funciones para productos
 def agregar_producto(nombre, categoria, precio, costo, stock, sucursal):
-    conn = get_db_connection()
-    c = conn.cursor()
+    db_client = get_firestore_db()
     product_id = str(uuid.uuid4())
     fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT INTO productos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-              (product_id, nombre, categoria, precio, costo, stock, sucursal, fecha_actual, fecha_actual))
-    conn.commit()
-    conn.close()
+    
+    product_data = {
+        "nombre": nombre,
+        "categoria": categoria,
+        "precio": float(precio),
+        "costo": float(costo),
+        "stock": int(stock),
+        "sucursal": sucursal,
+        "fecha_creacion": fecha_actual,
+        "fecha_actualizacion": fecha_actual
+    }
+    
+    try:
+        db_client.collection("productos").document(product_id).set(product_data)
+        return True
+    except Exception as e:
+        st.error(f"Error al agregar producto: {e}")
+        return False
 
 def actualizar_producto(product_id, nombre, categoria, precio, costo, stock):
-    conn = get_db_connection()
-    c = conn.cursor()
+    db_client = get_firestore_db()
     fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute('''UPDATE productos SET 
-                  nombre=?, categoria=?, precio=?, costo=?, 
-                  stock=?, fecha_actualizacion=?
-                  WHERE id=?''',
-              (nombre, categoria, precio, costo, stock, fecha_actual, product_id))
-    conn.commit()
-    conn.close()
+    
+    product_data = {
+        "nombre": nombre,
+        "categoria": categoria,
+        "precio": float(precio),
+        "costo": float(costo),
+        "stock": int(stock),
+        "fecha_actualizacion": fecha_actual
+    }
+    
+    try:
+        db_client.collection("productos").document(product_id).update(product_data)
+        return True
+    except Exception as e:
+        st.error(f"Error al actualizar producto: {e}")
+        return False
 
 def eliminar_producto(product_id):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM productos WHERE id=?", (product_id,))
-    conn.commit()
-    conn.close()
+    db_client = get_firestore_db()
+    try:
+        db_client.collection("productos").document(product_id).delete()
+        return True
+    except Exception as e:
+        st.error(f"Error al eliminar producto: {e}")
+        return False
 
 def obtener_productos(sucursal):
-    conn = get_db_connection()
-    query = "SELECT * FROM productos WHERE sucursal=?"
-    df = pd.read_sql_query(query, conn, params=(sucursal,))
-    conn.close()
-    return df
+    db_client = get_firestore_db()
+    productos_ref = db_client.collection("productos").where("sucursal", "==", sucursal).stream()
+    productos_list = []
+    for doc in productos_ref:
+        prod_data = doc.to_dict()
+        prod_data['id'] = doc.id # Añadir el ID del documento al diccionario
+        productos_list.append(prod_data)
+    return pd.DataFrame(productos_list)
 
 def obtener_producto_por_id(product_id):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT * FROM productos WHERE id=?", (product_id,))
-    producto = c.fetchone()
-    conn.close()
-    return producto
+    db_client = get_firestore_db()
+    try:
+        doc = db_client.collection("productos").document(product_id).get()
+        if doc.exists:
+            prod_data = doc.to_dict()
+            prod_data['id'] = doc.id
+            return prod_data
+        return None
+    except Exception as e:
+        st.error(f"Error al obtener producto por ID: {e}")
+        return None
 
 # Funciones para ventas
 def registrar_venta(sucursal, producto_id, cantidad, forma_pago):
+    db_client = get_firestore_db()
     producto_info = obtener_producto_por_id(producto_id)
+    
     if not producto_info:
         st.error("Producto no encontrado.")
         return False
     
-    # Los índices de la tupla producto_info corresponden a las columnas de la tabla productos
-    # id=0, nombre=1, categoria=2, precio=3, costo=4, stock=5, sucursal=6, fecha_creacion=7, fecha_actualizacion=8
-    
-    if producto_info[6] != sucursal:  # Verificar que el producto pertenezca a la sucursal
-        st.error(f"El producto '{producto_info[1]}' no pertenece a la sucursal '{sucursal}'.")
+    if producto_info['sucursal'] != sucursal:
+        st.error(f"El producto '{producto_info['nombre']}' no pertenece a la sucursal '{sucursal}'.")
         return False
     
-    if producto_info[5] < cantidad: # Verificar stock
-        st.error(f"Stock insuficiente para '{producto_info[1]}'. Stock disponible: {producto_info[5]}")
+    if producto_info['stock'] < cantidad:
+        st.error(f"Stock insuficiente para '{producto_info['nombre']}'. Stock disponible: {producto_info['stock']}")
         return False
 
-    precio_unitario = producto_info[3]
+    precio_unitario = producto_info['precio']
     impuesto_unitario = precio_unitario * 0.16
-    total = (precio_unitario + impuesto_unitario) * cantidad
+    total_venta = (precio_unitario + impuesto_unitario) * cantidad
     
-    # Actualizar stock
-    conn = get_db_connection()
-    c = conn.cursor()
-    
-    c.execute("UPDATE productos SET stock = stock - ? WHERE id=?", (cantidad, producto_id))
-    
-    # Registrar venta
-    venta_id = str(uuid.uuid4())
-    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT INTO ventas VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-              (venta_id, sucursal, producto_id, cantidad, precio_unitario, impuesto_unitario * cantidad, total, forma_pago, fecha))
-    
-    conn.commit()
-    conn.close()
-    return True
+    # Usar una transacción para actualizar el stock y registrar la venta de forma atómica
+    try:
+        transaction = db_client.transaction()
+        product_doc_ref = db_client.collection("productos").document(producto_id)
+
+        @firestore.transactional
+        def update_product_and_add_sale(transaction, product_ref, prod_info, qty, branch, payment_method):
+            snapshot = product_ref.get(transaction=transaction)
+            if not snapshot.exists:
+                raise ValueError("El producto no existe o fue eliminado durante la transacción.")
+            
+            current_stock = snapshot.get("stock")
+            if current_stock < qty:
+                raise ValueError(f"Stock insuficiente para '{prod_info['nombre']}'. Disponible: {current_stock}")
+
+            new_stock = current_stock - qty
+            transaction.update(product_ref, {"stock": new_stock, "fecha_actualizacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+
+            venta_id = str(uuid.uuid4())
+            fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sale_data = {
+                "sucursal": branch,
+                "producto_id": prod_info['id'],
+                "nombre_producto": prod_info['nombre'], # Añadir nombre para facilitar reportes
+                "cantidad": qty,
+                "precio_unitario": prod_info['precio'],
+                "impuesto": impuesto_unitario * qty,
+                "total": total_venta,
+                "forma_pago": payment_method,
+                "fecha": fecha
+            }
+            db_client.collection("ventas").document(venta_id).set(sale_data, transaction=transaction)
+            return True
+
+        update_product_and_add_sale(transaction, product_doc_ref, producto_info, cantidad, sucursal, forma_pago)
+        return True
+    except ValueError as ve:
+        st.error(f"Error de stock/producto: {ve}")
+        return False
+    except Exception as e:
+        st.error(f"Error al registrar la venta (transacción): {e}")
+        return False
 
 def obtener_ventas(sucursal):
-    conn = get_db_connection()
-    query = "SELECT * FROM ventas WHERE sucursal=?"
-    df = pd.read_sql_query(query, conn, params=(sucursal,))
-    conn.close()
-    return df
+    db_client = get_firestore_db()
+    ventas_ref = db_client.collection("ventas").where("sucursal", "==", sucursal).stream()
+    ventas_list = []
+    for doc in ventas_ref:
+        sale_data = doc.to_dict()
+        sale_data['id'] = doc.id # Añadir el ID del documento
+        ventas_list.append(sale_data)
+    return pd.DataFrame(ventas_list)
 
 # Interfaz de usuario
 def mostrar_seleccion_sucursal():
@@ -162,9 +241,9 @@ def modulo_inventario(sucursal):
             
             if st.form_submit_button("Agregar Producto"):
                 if nombre and precio >= 0 and costo >= 0 and stock >= 0:
-                    agregar_producto(nombre, categoria, precio, costo, stock, sucursal)
-                    st.success("Producto agregado correctamente!")
-                    st.experimental_rerun() # Recargar para ver los cambios
+                    if agregar_producto(nombre, categoria, precio, costo, stock, sucursal):
+                        st.success("Producto agregado correctamente!")
+                        st.experimental_rerun() # Recargar para ver los cambios
                 else:
                     st.error("Por favor, complete todos los campos y asegúrese de que los valores sean válidos.")
     
@@ -183,16 +262,16 @@ def modulo_inventario(sucursal):
             )
             
             # Obtener el ID del producto seleccionado a partir del nombre en display
-            # Se asume que los nombres de productos son únicos para esta lógica simple
             selected_product_name = producto_seleccionado_display.split(" (Stock:")[0]
             producto_id = productos[productos['nombre'] == selected_product_name]['id'].values[0]
-            producto_data = obtener_producto_por_id(producto_id) # Obtener la tupla de datos del producto
+            producto_data = obtener_producto_por_id(producto_id) # Obtener el diccionario de datos del producto
             
             if producto_data:
-                # Mapear la tupla a nombres de columnas para facilitar el acceso
-                # (id, nombre, categoria, precio, costo, stock, sucursal, fecha_creacion, fecha_actualizacion)
-                current_nombre, current_categoria, current_precio, current_costo, current_stock = \
-                    producto_data[1], producto_data[2], producto_data[3], producto_data[4], producto_data[5]
+                current_nombre = producto_data.get('nombre', '')
+                current_categoria = producto_data.get('categoria', 'Otro')
+                current_precio = producto_data.get('precio', 0.0)
+                current_costo = producto_data.get('costo', 0.0)
+                current_stock = producto_data.get('stock', 0)
 
                 with st.form("modificar_producto_form"):
                     nuevo_nombre = st.text_input("Nombre", value=current_nombre)
@@ -207,12 +286,12 @@ def modulo_inventario(sucursal):
                     
                     if st.form_submit_button("Actualizar Producto"):
                         if nuevo_nombre and nuevo_precio >= 0 and nuevo_costo >= 0 and nuevo_stock >= 0:
-                            actualizar_producto(
+                            if actualizar_producto(
                                 producto_id, nuevo_nombre, nueva_categoria, 
                                 nuevo_precio, nuevo_costo, nuevo_stock
-                            )
-                            st.success("Producto actualizado correctamente!")
-                            st.experimental_rerun() # Recargar para ver los cambios
+                            ):
+                                st.success("Producto actualizado correctamente!")
+                                st.experimental_rerun() # Recargar para ver los cambios
                         else:
                             st.error("Por favor, complete todos los campos y asegúrese de que los valores sean válidos.")
             else:
@@ -234,9 +313,9 @@ def modulo_inventario(sucursal):
             producto_id = productos[productos['nombre'] == producto_seleccionado]['id'].values[0]
             
             if st.button("Eliminar Producto"):
-                eliminar_producto(producto_id)
-                st.success("Producto eliminado correctamente!")
-                st.experimental_rerun() # Recargar para ver los cambios
+                if eliminar_producto(producto_id):
+                    st.success("Producto eliminado correctamente!")
+                    st.experimental_rerun() # Recargar para ver los cambios
         else:
             st.warning("No hay productos registrados en esta sucursal para eliminar.")
     
@@ -313,21 +392,21 @@ def modulo_ventas(sucursal):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Precio Unitario", f"${producto_info[3]:,.2f}")
+            st.metric("Precio Unitario", f"${producto_info['precio']:,.2f}")
         
         with col2:
-            st.metric("Stock Disponible", producto_info[5])
+            st.metric("Stock Disponible", producto_info['stock'])
         
         with col3:
-            st.metric("Impuesto (16%) por unidad", f"${producto_info[3] * 0.16:,.2f}")
+            st.metric("Impuesto (16%) por unidad", f"${producto_info['precio'] * 0.16:,.2f}")
         
         # Formulario de venta
         with st.form("venta_form"):
-            cantidad = st.number_input("Cantidad", min_value=1, max_value=producto_info[5], value=1)
+            cantidad = st.number_input("Cantidad", min_value=1, max_value=producto_info['stock'], value=1)
             forma_pago = st.selectbox("Forma de Pago", ["Efectivo", "Tarjeta Crédito", "Tarjeta Débito", "Transferencia"])
             
             # Calcular total antes de enviar
-            precio_calc = producto_info[3]
+            precio_calc = producto_info['precio']
             impuesto_calc = precio_calc * 0.16
             total_calc = (precio_calc + impuesto_calc) * cantidad
             st.info(f"Total a pagar: ${total_calc:,.2f}")
@@ -352,6 +431,7 @@ def modulo_ventas(sucursal):
         ventas_recientes = ventas.sort_values('fecha', ascending=False).head(10)
         # Asegurarse de que las columnas existan antes de intentar eliminarlas
         cols_to_drop = ['id', 'producto_id', 'sucursal']
+        # Si 'nombre_producto' se añadió en la venta, también se puede mostrar
         cols_to_display = [col for col in ventas_recientes.columns if col not in cols_to_drop]
         st.dataframe(ventas_recientes[cols_to_display], use_container_width=True)
     else:
@@ -413,18 +493,13 @@ def modulo_reportes(sucursal):
 
                 # Gráfico: Ventas por Producto (Top N)
                 # Unir ventas con productos para obtener nombres de productos
-                conn = get_db_connection()
-                productos_df = pd.read_sql_query("SELECT id, nombre FROM productos", conn)
-                conn.close()
-                
-                ventas_con_nombres = pd.merge(ventas_filtradas, productos_df, left_on='producto_id', right_on='id', suffixes=('_venta', '_producto'))
-                
-                ventas_por_producto = ventas_con_nombres.groupby('nombre')['total'].sum().nlargest(5).reset_index()
+                # Ya no es necesario obtener productos_df de SQLite, el nombre_producto ya está en ventas
+                ventas_por_producto = ventas_filtradas.groupby('nombre_producto')['total'].sum().nlargest(5).reset_index()
                 st.subheader("Top 5 Productos más Vendidos")
                 chart_top_productos = alt.Chart(ventas_por_producto).mark_bar().encode(
                     x=alt.X('total:Q', title='Ventas Totales ($)'),
-                    y=alt.Y('nombre:N', sort='-x', title='Producto'),
-                    tooltip=['nombre', alt.Tooltip('total', format='$,.2f')]
+                    y=alt.Y('nombre_producto:N', sort='-x', title='Producto'),
+                    tooltip=['nombre_producto', alt.Tooltip('total', format='$,.2f')]
                 ).properties(
                     title='Top 5 Productos más Vendidos'
                 )
@@ -433,9 +508,9 @@ def modulo_reportes(sucursal):
                 # Detalle de ventas
                 st.subheader("Detalle de Ventas")
                 # Asegurarse de que las columnas existan antes de intentar eliminarlas
-                cols_to_drop = ['id_venta', 'producto_id', 'sucursal', 'id_producto'] # id_producto es del merge
-                cols_to_display = [col for col in ventas_con_nombres.columns if col not in cols_to_drop]
-                st.dataframe(ventas_con_nombres[cols_to_display], use_container_width=True)
+                cols_to_drop = ['id', 'producto_id', 'sucursal'] # 'id_producto' ya no existe del merge
+                cols_to_display = [col for col in ventas_filtradas.columns if col not in cols_to_drop]
+                st.dataframe(ventas_filtradas[cols_to_display], use_container_width=True)
         else:
             st.info("No hay ventas registradas en esta sucursal para generar reportes.")
     
