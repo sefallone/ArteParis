@@ -1,12 +1,18 @@
 import streamlit as st
-from db import obtener_productos_por_sucursal
+from db import get_connection
 
 def main():
-    st.title("Inventario Arte París")
+    st.title("Conexión de prueba a PlanetScale")
 
-    sucursal = st.selectbox("Selecciona la sucursal", ["centro", "unicentro"])
-    productos = obtener_productos_por_sucursal(sucursal)
-    st.dataframe(productos)
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SHOW TABLES")
+        tablas = cursor.fetchall()
+        st.success("✅ Conexión exitosa")
+        st.write("Tablas:", tablas)
+    except:
+        st.error("❌ Conexión fallida")
 
 if __name__ == "__main__":
     main()
