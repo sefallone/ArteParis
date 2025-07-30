@@ -1,5 +1,5 @@
 # db.py
-import psycopg2
+import psycopg2-binary
 import streamlit as st
 
 def get_connection():
