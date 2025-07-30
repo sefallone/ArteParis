@@ -21,3 +21,12 @@ if st.button("Conectar"):
     except Exception as e:
         st.error("❌ Error al conectar:")
         st.error(e)
+
+
+
+conn = get_connection()
+cursor = conn.cursor()
+cursor.execute("SHOW TABLES")
+tables = cursor.fetchall()
+st.write("Tablas en la base de datos:", tables)
+
