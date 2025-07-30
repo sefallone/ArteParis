@@ -9,18 +9,10 @@ def get_connection():
             user=st.secrets["mysql"]["user"],
             password=st.secrets["mysql"]["password"],
             database=st.secrets["mysql"]["database"],
-            autocommit=True
+            ssl_ca="/etc/ssl/certs/ca-certificates.crt"  # Certificado del sistema
         )
         return conn
-    except Exception as e:
+    except Exception:
         st.error("❌ Error al conectar a la base de datos:")
         st.error(traceback.format_exc())
         raise
-
-def obtener_productos_por_sucursal(sucursal):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM inventario WHERE sucursal = %s", (sucursal,))
-    productos = cursor.fetchall()
-    conn.close()
-    return productos
