@@ -16,3 +16,11 @@ def get_connection():
         st.error("❌ Error al conectar a la base de datos:")
         st.error(traceback.format_exc())
         raise
+
+def obtener_productos_por_sucursal(sucursal):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM inventario WHERE sucursal = %s", (sucursal,))
+    productos = cursor.fetchall()
+    conn.close()
+    return productos
