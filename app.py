@@ -169,7 +169,7 @@ def modulo_inventario():
                 nuevo_costo = st.number_input("Costo", value=producto[4], min_value=0.0, step=0.1)
                 nuevo_stock_centro = st.number_input("Stock Centro", value=producto[5], min_value=0, step=1)
                 nuevo_stock_unicentro = st.number_input("Stock Unicentro", value=producto[6], min_value=0, step=1)
-                
+                )
                 if st.form_submit_button("Actualizar Producto"):
                     actualizar_producto(
                         producto_id, nuevo_nombre, nueva_categoria, 
