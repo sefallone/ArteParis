@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 import firebase_admin
 from firebase_admin import credentials, firestore, auth # Importar auth para la autenticación
+import os # Importar el módulo os
 
 # --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
 @st.cache_resource
@@ -20,6 +21,8 @@ def initialize_firebase():
     if '__firebase_config' in st.session_state:
         firebase_config = st.session_state['__firebase_config']
     elif 'FIREBASE_CONFIG' in os.environ: # Fallback para entornos que usen variables de entorno
+        # Asegúrate de que 'json' también esté importado si usas esta rama
+        import json 
         firebase_config = json.loads(os.environ['FIREBASE_CONFIG'])
     else:
         st.error("Error: FIREBASE_CONFIG no encontrado. Asegúrate de que la aplicación se ejecuta en un entorno compatible o proporciona la configuración.")
