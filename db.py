@@ -1,7 +1,5 @@
 import sqlite3
 
-DB_FILE = "inventario.db"
-
 def get_connection():
     return sqlite3.connect("inventario.db", check_same_thread=False)
 
@@ -22,7 +20,6 @@ def crear_tabla_productos():
     cursor.close()
     conn.close()
 
-
 def agregar_producto(sucursal, nombre, cantidad, precio_costo, precio_venta):
     conn = get_connection()
     cursor = conn.cursor()
@@ -38,40 +35,40 @@ def obtener_productos_por_sucursal(sucursal):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM productos WHERE sucursal = ?;", (sucursal,))
-    rows = cursor.fetchall()
+    productos = cursor.fetchall()
     cursor.close()
     conn.close()
-    return rows
+    return productos
 
 def buscar_producto(sucursal, nombre):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT * FROM productos
-        WHERE sucursal = ? AND LOWER(nombre) = LOWER(?)
-        LIMIT 1;
+        SELECT * FROM productos WHERE sucursal = ? AND nombre = ?;
     """, (sucursal, nombre))
-    resultado = cursor.fetchone()
+    producto = cursor.fetchone()
     cursor.close()
     conn.close()
-    return resultado
+    return producto
 
-def modificar_producto(id, nuevo_nombre, nueva_cantidad, nuevo_precio_costo, nuevo_precio_venta):
+def modificar_producto(sucursal, nombre, nueva_cantidad, nuevo_precio_costo, nuevo_precio_venta):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         UPDATE productos
-        SET nombre = ?, cantidad = ?, precio_costo = ?, precio_venta = ?
-        WHERE id = ?;
-    """, (nuevo_nombre, nueva_cantidad, nuevo_precio_costo, nuevo_precio_venta, id))
+        SET cantidad = ?, precio_costo = ?, precio_venta = ?
+        WHERE sucursal = ? AND nombre = ?;
+    """, (nueva_cantidad, nuevo_precio_costo, nuevo_precio_venta, sucursal, nombre))
     conn.commit()
     cursor.close()
     conn.close()
 
-def eliminar_producto(id):
+def eliminar_producto(sucursal, nombre):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM productos WHERE id = ?;", (id,))
+    cursor.execute("""
+        DELETE FROM productos WHERE sucursal = ? AND nombre = ?;
+    """, (sucursal, nombre))
     conn.commit()
     cursor.close()
     conn.close()
