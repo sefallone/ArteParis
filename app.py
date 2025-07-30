@@ -164,12 +164,12 @@ def modulo_inventario():
                 nueva_categoria = st.selectbox(
                     "Categoría", 
                     ["Pastel", "Pan", "Café", "Bebida", "Otro"],
-                    index=["Pastel", "Pan", "Café", "Bebida", "Otro"].index(producto[2])
+                    index=["Pastel", "Pan", "Café", "Bebida", "Otro"].index(producto[2]))
                 nuevo_precio = st.number_input("Precio", value=producto[3], min_value=0.0, step=0.1)
                 nuevo_costo = st.number_input("Costo", value=producto[4], min_value=0.0, step=0.1)
                 nuevo_stock_centro = st.number_input("Stock Centro", value=producto[5], min_value=0, step=1)
                 nuevo_stock_unicentro = st.number_input("Stock Unicentro", value=producto[6], min_value=0, step=1)
-                )
+                
                 if st.form_submit_button("Actualizar Producto"):
                     actualizar_producto(
                         producto_id, nuevo_nombre, nueva_categoria, 
