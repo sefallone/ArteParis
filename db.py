@@ -1,5 +1,8 @@
+import mysql.connector
+import streamlit as st
+import traceback
+
 def get_connection():
-    import traceback
     try:
         conn = mysql.connector.connect(
             host=st.secrets["mysql"]["host"],
@@ -11,5 +14,5 @@ def get_connection():
         return conn
     except Exception as e:
         st.error("❌ Error al conectar a la base de datos:")
-        st.error(traceback.format_exc())  # usar st.error para mejor visibilidad
+        st.error(traceback.format_exc())
         raise
