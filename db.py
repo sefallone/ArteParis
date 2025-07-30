@@ -1,45 +1,23 @@
 import streamlit as st
 import mysql.connector
-import traceback
 
-# Configuración directa (reemplaza con tus valores reales)
-DB_CONFIG = {
-    "host": "aws-us-east-2.connect.psdb.cloud",
-    "user": "a8vdrmkrp37a1bsusss2",
-    "password": "pscale_pw_WlrkTEL5kVinSjZ0K0I6Gi8V0UONxMywzp1LGlmeFhY",
-    "database": "arte_paris",
-    "ssl_ca": "/etc/ssl/certs/ca-certificates.crt"
-}
+st.title("Conexión a la Base de Datos")
 
-st.title("🔌 Test de conexión a PlanetScale (sin secrets.toml)")
+host = st.text_input("Host", value="aws-us-east-2.connect.psdb.cloud")
+user = st.text_input("Usuario", value="tu_usuario")
+password = st.text_input("Contraseña", type="password")
+database = st.text_input("Base de datos", value="arte_paris")
 
-try:
-    st.write("🔄 Intentando conectar a la base de datos...")
-
-    conn = mysql.connector.connect(
-        host=DB_CONFIG["host"],
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        database=DB_CONFIG["database"],
-        ssl_ca=DB_CONFIG["ssl_ca"]
-    )
-
-    st.success("✅ Conexión exitosa.")
-
-    cursor = conn.cursor()
-    cursor.execute("SHOW TABLES")
-    tablas = cursor.fetchall()
-
-    if tablas:
-        st.subheader("📦 Tablas disponibles:")
-        for tabla in tablas:
-            st.write(f"- {tabla[0]}")
-    else:
-        st.warning("La base de datos no tiene tablas.")
-
-    cursor.close()
-    conn.close()
-
-except Exception:
-    st.error("❌ Error al conectar a la base de datos:")
-    st.exception(traceback.format_exc())
+if st.button("Conectar"):
+    try:
+        conn = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            ssl_ca="/etc/ssl/certs/ca-certificates.crt"
+        )
+        st.success("✅ Conexión exitosa")
+    except Exception as e:
+        st.error("❌ Error al conectar:")
+        st.error(e)
