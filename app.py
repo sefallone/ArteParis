@@ -5,7 +5,8 @@ import uuid
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import os
-import json # Necesario para json.loads
+import json
+import altair as alt # Necesario para los gráficos en el módulo de reportes
 
 # --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
 @st.cache_resource
@@ -16,15 +17,21 @@ def initialize_firebase():
 
     # 1. Intenta obtener la configuración de Streamlit Secrets (para Streamlit Cloud)
     if "firebase" in st.secrets:
-        firebase_config = st.secrets["firebase"].to_dict() # Convierte a dict si es un SecretDict
+        # Convierte a dict si es un SecretDict
+        firebase_config = st.secrets["firebase"].to_dict() 
         # Asume que initial_auth_token también podría estar en secrets si es necesario
         initial_auth_token = st.secrets.get("initial_auth_token") 
         st.success("Firebase: Configuración y token obtenidos de Streamlit Secrets.")
     # 2. Fallback para el entorno de Canvas (si aplica)
     elif '__firebase_config' in st.session_state and '__initial_auth_token' in st.session_state:
-        firebase_config = st.session_state['__firebase_config']
-        initial_auth_token = st.session_state['__initial_auth_token']
-        st.success("Firebase: Configuración y token obtenidos del entorno Canvas.")
+        # Intenta cargar la configuración de los secretos del entorno, que se pasan como strings
+        try:
+            firebase_config = json.loads(st.session_state['__firebase_config'])
+            initial_auth_token = st.session_state['__initial_auth_token']
+            st.success("Firebase: Configuración y token obtenidos del entorno Canvas.")
+        except json.JSONDecodeError:
+            st.error("Error: La configuración de Firebase del entorno no es un JSON válido.")
+            return None, None
     else:
         # --- Configuración de ejemplo para desarrollo local (NO PERSISTENTE) ---
         st.warning("Advertencia: No se encontró la configuración de Firebase en `st.secrets` ni en el entorno Canvas.")
@@ -134,14 +141,28 @@ def eliminar_producto(product_id):
         st.error(f"Error al eliminar producto: {e}")
         return False
 
+# --- MODIFICACIÓN CLAVE AQUÍ ---
+@st.cache_data(ttl=600)
 def obtener_productos(sucursal):
     db_client = get_firestore_db()
-    productos_ref = db_client.collection("productos").where("sucursal", "==", sucursal).stream()
     productos_list = []
-    for doc in productos_ref:
-        prod_data = doc.to_dict()
-        prod_data['id'] = doc.id # Añadir el ID del documento al diccionario
-        productos_list.append(prod_data)
+    try:
+        # Usamos .stream() que es eficiente para grandes colecciones
+        productos_ref = db_client.collection("productos").where("sucursal", "==", sucursal).stream()
+        for doc in productos_ref:
+            prod_data = doc.to_dict()
+            prod_data['id'] = doc.id # Añadir el ID del documento al diccionario
+            productos_list.append(prod_data)
+    except Exception as e:
+        # Capturamos cualquier error, incluyendo posibles timeouts
+        st.error(f"Error al obtener productos: {e}")
+        # En caso de error, devolvemos un DataFrame vacío
+        return pd.DataFrame(columns=['id', 'nombre', 'precio', 'costo', 'stock', 'sucursal'])
+        
+    # Si la lista está vacía (no hay productos), también devolvemos un DataFrame vacío
+    if not productos_list:
+        return pd.DataFrame(columns=['id', 'nombre', 'precio', 'costo', 'stock', 'sucursal'])
+        
     return pd.DataFrame(productos_list)
 
 def obtener_producto_por_id(product_id):
@@ -221,14 +242,22 @@ def registrar_venta(sucursal, producto_id, cantidad, forma_pago):
         st.error(f"Error al registrar la venta (transacción): {e}")
         return False
 
+@st.cache_data(ttl=600)
 def obtener_ventas(sucursal):
     db_client = get_firestore_db()
-    ventas_ref = db_client.collection("ventas").where("sucursal", "==", sucursal).stream()
     ventas_list = []
-    for doc in ventas_ref:
-        sale_data = doc.to_dict()
-        sale_data['id'] = doc.id # Añadir el ID del documento
-        ventas_list.append(sale_data)
+    try:
+        ventas_ref = db_client.collection("ventas").where("sucursal", "==", sucursal).stream()
+        for doc in ventas_ref:
+            sale_data = doc.to_dict()
+            sale_data['id'] = doc.id # Añadir el ID del documento
+            ventas_list.append(sale_data)
+    except Exception as e:
+        st.error(f"Error al obtener ventas: {e}")
+        return pd.DataFrame(columns=['id', 'sucursal', 'producto_id', 'nombre_producto', 'cantidad', 'precio_unitario', 'impuesto', 'total', 'forma_pago', 'fecha'])
+
+    if not ventas_list:
+        return pd.DataFrame(columns=['id', 'sucursal', 'producto_id', 'nombre_producto', 'cantidad', 'precio_unitario', 'impuesto', 'total', 'forma_pago', 'fecha'])
     return pd.DataFrame(ventas_list)
 
 # Interfaz de usuario
@@ -504,7 +533,6 @@ def modulo_reportes(sucursal):
                 st.altair_chart(chart_forma_pago, use_container_width=True)
 
                 # Gráfico: Ventas por Producto (Top N)
-                # Unir ventas con productos para obtener nombres de productos
                 # Ya no es necesario obtener productos_df de SQLite, el nombre_producto ya está en ventas
                 ventas_por_producto = ventas_filtradas.groupby('nombre_producto')['total'].sum().nlargest(5).reset_index()
                 st.subheader("Top 5 Productos más Vendidos")
@@ -588,4 +616,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
