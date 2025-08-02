@@ -10,6 +10,8 @@ import altair as alt # Necesario para los gráficos en el módulo de reportes
 
 # --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
 @st.cache_resource
+# --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
+@st.cache_resource
 def initialize_firebase():
     firebase_config = {}
     initial_auth_token = None
@@ -17,59 +19,51 @@ def initialize_firebase():
 
     # 1. Intenta obtener la configuración de Streamlit Secrets (para Streamlit Cloud)
     if "firebase" in st.secrets:
-        # Convierte a dict si es un SecretDict
-        firebase_config = st.secrets["firebase"].to_dict() 
-        # Asume que initial_auth_token también podría estar en secrets si es necesario
-        initial_auth_token = st.secrets.get("initial_auth_token") 
-        st.success("Firebase: Configuración y token obtenidos de Streamlit Secrets.")
+        firebase_config = dict(st.secrets["firebase"])
+        initial_auth_token = st.secrets.get("initial_auth_token")
+        st.success("Firebase: Configuración obtenida de Streamlit Secrets.")
     # 2. Fallback para el entorno de Canvas (si aplica)
-    elif '__firebase_config' in st.session_state and '__initial_auth_token' in st.session_state:
-        # Intenta cargar la configuración de los secretos del entorno, que se pasan como strings
+    elif '__firebase_config' in st.session_state:
         try:
             firebase_config = json.loads(st.session_state['__firebase_config'])
-            initial_auth_token = st.session_state['__initial_auth_token']
-            st.success("Firebase: Configuración y token obtenidos del entorno Canvas.")
+            initial_auth_token = st.session_state.get('__initial_auth_token')
+            st.success("Firebase: Configuración obtenida del entorno Canvas.")
         except json.JSONDecodeError:
-            st.error("Error: La configuración de Firebase del entorno no es un JSON válido.")
+            st.error("Error: La configuración de Firebase no es un JSON válido.")
             return None, None
     else:
-        # --- Configuración de ejemplo para desarrollo local (NO PERSISTENTE) ---
-        st.warning("Advertencia: No se encontró la configuración de Firebase en `st.secrets` ni en el entorno Canvas.")
-        st.warning("La aplicación se ejecutará con una configuración de Firebase de ejemplo (solo para UI).")
-        st.warning("Los datos NO serán persistentes en tu proyecto de Firebase real.")
-        st.warning("Para conectar a tu Firebase real en Streamlit Cloud, añade tus credenciales a `.streamlit/secrets.toml`.")
-        st.code("""
-        # Ejemplo de .streamlit/secrets.toml
-        # [firebase]
-        # apiKey = "TU_API_KEY"
-        # authDomain = "TU_AUTH_DOMAIN"
-        # projectId = "TU_PROJECT_ID"
-        # storageBucket = "TU_STORAGE_BUCKET"
-        # messagingSenderId = "TU_MESSAGING_SENDER_ID"
-        # appId = "TU_APP_ID"
-        #
-        # # Si usas Firebase Authentication y necesitas un token inicial:
-        # # initial_auth_token = "TU_TOKEN_DE_AUTENTICACION_INICIAL_SI_LO_NECESITAS"
-        """)
-        # Retorna None, None para indicar que Firebase no está configurado correctamente para operaciones de DB
+        st.error("Error: No se encontró configuración de Firebase. Verifica tus secrets o variables de entorno.")
         return None, None
 
-    if firebase_config: # Solo intentar inicializar Firebase si tenemos alguna configuración
-        if not firebase_admin._apps: # Inicializar solo si no está ya inicializado
-            try:
-                # Se inicializa Firebase Admin SDK directamente con la configuración.
-                # No se usa credentials.AnonymousCredentials() ya que no es el tipo de credencial adecuado para Admin SDK.
+    try:
+        # Verificar que tenemos la configuración mínima necesaria
+        if not all(key in firebase_config for key in ['projectId', 'apiKey', 'authDomain']):
+            st.error("Configuración de Firebase incompleta. Se necesitan al menos projectId, apiKey y authDomain.")
+            return None, None
+            
+        # Inicializar Firebase solo si no está ya inicializado
+        if not firebase_admin._apps:
+            cred = credentials.Certificate(firebase_config) if 'private_key' in firebase_config else None
+            if cred:
+                firebase_admin.initialize_app(cred, firebase_config)
+            else:
                 firebase_admin.initialize_app(options=firebase_config)
-                st.success("Firebase inicializado correctamente.")
-            except ValueError:
-                st.warning("Firebase ya ha sido inicializado.")
-            except Exception as e:
-                st.error(f"Error al inicializar Firebase: {e}")
-                return None, None
         
         db_client = firestore.client()
-    
-    return db_client, initial_auth_token
+        st.success("Firebase inicializado correctamente.")
+        return db_client, initial_auth_token
+        
+    except Exception as e:
+        st.error(f"Error al inicializar Firebase: {str(e)}")
+        return None, None
+
+# Variables globales para el cliente de DB y el token de autenticación
+db, initial_auth_token = initialize_firebase()
+
+# Verificar que Firebase se inicializó correctamente antes de continuar
+if db is None:
+    st.error("No se pudo inicializar Firebase. La aplicación no puede continuar.")
+    st.stop()
 
 # Variables globales para el cliente de DB y el token de autenticación
 db, initial_auth_token = initialize_firebase()
