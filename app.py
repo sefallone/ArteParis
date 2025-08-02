@@ -6,12 +6,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import os
 import json
-import altair as alt # Necesario para los gráficos en el módulo de reportes
+import altair as alt 
 
-# --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
-@st.cache_resource
-# --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
-@st.cache_resource
 @st.cache_resource
 def initialize_firebase():
     try:
@@ -62,13 +58,13 @@ st.set_page_config(page_title="Pastelería-Café", layout="wide")
 
 @st.cache_resource
 def get_firestore_db():
-    # Esta función asegura que el cliente de Firestore se obtenga y se cachee.
-    # La inicialización de Firebase se maneja en initialize_firebase()
-    if db is None: # Usa la variable global 'db'
+    if db is None: 
         st.error("Firestore no está disponible. Asegúrate de que Firebase se inicializó correctamente.")
-        st.stop() # Detiene la ejecución si Firestore no está disponible
+        st.stop() 
     return db
 
+
+"""
 # Funciones para productos
 def agregar_producto(nombre, categoria, precio, costo, stock, sucursal):
     db_client = get_firestore_db()
@@ -564,19 +560,19 @@ def modulo_reportes(sucursal):
                 st.info("No hay productos con bajo stock.")
         else:
             st.warning("No hay productos registrados en esta sucursal para generar reportes de inventario.")
-
+"""
 # Menú principal
 def main():
     st.title("Sistema de Pastelería-Café")
     
     # Selección de sucursal (siempre visible)
-    sucursal = mostrar_seleccion_sucursal()
+    #sucursal = mostrar_seleccion_sucursal()
     
     # Menú de opciones
     menu = st.sidebar.selectbox("Menú Principal", ["Inicio", "Inventario", "Ventas", "Reportes"])
     
     if menu == "Inicio":
-        st.subheader(f"Bienvenido al Sistema de Gestión - Sucursal {sucursal}")
+        st.subheader(f"Bienvenido al Sistema de Gestión - Sucursal" ) #{sucursal}")
         st.write("""
         **Funcionalidades:**
         - Gestión de inventario (agregar, modificar, eliminar productos)
@@ -587,13 +583,14 @@ def main():
         """)
     
     elif menu == "Inventario":
-        modulo_inventario(sucursal)
-    
+        #modulo_inventario(sucursal)
+        st.write("INVENTARIO")
     elif menu == "Ventas":
-        modulo_ventas(sucursal)
-    
+        #modulo_ventas(sucursal)
+        st.write("VENTAS")
     elif menu == "Reportes":
-        modulo_reportes(sucursal)
+        #modulo_reportes(sucursal)
+        st.write("REPORTES")
 
 if __name__ == "__main__":
     main()
