@@ -12,62 +12,49 @@ import altair as alt # Necesario para los gráficos en el módulo de reportes
 @st.cache_resource
 # --- 0. Inicialización de Firebase (Caché para ejecutar una sola vez) ---
 @st.cache_resource
+@st.cache_resource
 def initialize_firebase():
-    firebase_config = {}
-    initial_auth_token = None
-    db_client = None 
-
-    # 1. Intenta obtener la configuración de Streamlit Secrets (para Streamlit Cloud)
-    if "firebase" in st.secrets:
-        firebase_config = dict(st.secrets["firebase"])
-        initial_auth_token = st.secrets.get("initial_auth_token")
-        st.success("Firebase: Configuración obtenida de Streamlit Secrets.")
-    # 2. Fallback para el entorno de Canvas (si aplica)
-    elif '__firebase_config' in st.session_state:
-        try:
-            firebase_config = json.loads(st.session_state['__firebase_config'])
-            initial_auth_token = st.session_state.get('__initial_auth_token')
-            st.success("Firebase: Configuración obtenida del entorno Canvas.")
-        except json.JSONDecodeError:
-            st.error("Error: La configuración de Firebase no es un JSON válido.")
-            return None, None
-    else:
-        st.error("Error: No se encontró configuración de Firebase. Verifica tus secrets o variables de entorno.")
-        return None, None
-
     try:
-        # Verificar que tenemos la configuración mínima necesaria
-        if not all(key in firebase_config for key in ['projectId', 'apiKey', 'authDomain']):
-            st.error("Configuración de Firebase incompleta. Se necesitan al menos projectId, apiKey y authDomain.")
-            return None, None
-            
-        # Inicializar Firebase solo si no está ya inicializado
+        # Verificar si ya está inicializado
         if not firebase_admin._apps:
-            cred = credentials.Certificate(firebase_config) if 'private_key' in firebase_config else None
-            if cred:
-                firebase_admin.initialize_app(cred, firebase_config)
-            else:
-                firebase_admin.initialize_app(options=firebase_config)
+            # Obtener configuración del secret
+            if "firebase" not in st.secrets:
+                st.error("No se encontró la configuración de Firebase en secrets.toml")
+                return None, None
+            
+            # Configuración para Service Account
+            sa_info = {
+                "type": st.secrets.firebase.type,
+                "project_id": st.secrets.firebase.project_id,
+                "private_key_id": st.secrets.firebase.private_key_id,
+                "private_key": st.secrets.firebase.private_key.replace('\\n', '\n'),
+                "client_email": st.secrets.firebase.client_email,
+                "client_id": st.secrets.firebase.client_id,
+                "auth_uri": st.secrets.firebase.auth_uri,
+                "token_uri": st.secrets.firebase.token_uri,
+                "auth_provider_x509_cert_url": st.secrets.firebase.auth_provider_x509_cert_url,
+                "client_x509_cert_url": st.secrets.firebase.client_x509_cert_url
+            }
+            
+            # Crear credencial
+            cred = credentials.Certificate(sa_info)
+            
+            # Inicializar Firebase
+            firebase_admin.initialize_app(cred)
+            
+            st.success("Firebase inicializado correctamente con Service Account")
         
-        db_client = firestore.client()
-        st.success("Firebase inicializado correctamente.")
-        return db_client, initial_auth_token
-        
+        return firestore.client(), None
+    
     except Exception as e:
         st.error(f"Error al inicializar Firebase: {str(e)}")
         return None, None
 
-# Variables globales para el cliente de DB y el token de autenticación
-db, initial_auth_token = initialize_firebase()
-
-# Verificar que Firebase se inicializó correctamente antes de continuar
+# Uso en tu aplicación
+db, _ = initialize_firebase()
 if db is None:
-    st.error("No se pudo inicializar Firebase. La aplicación no puede continuar.")
+    st.error("No se pudo conectar a Firestore. Verifica tus credenciales.")
     st.stop()
-
-# Variables globales para el cliente de DB y el token de autenticación
-db, initial_auth_token = initialize_firebase()
-
 # Configuración inicial de Streamlit
 st.set_page_config(page_title="Pastelería-Café", layout="wide")
 
