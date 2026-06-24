@@ -1,7 +1,8 @@
+# app.py - Versión CORREGIDA
 import streamlit as st
 from streamlit_option_menu import option_menu
 from utils.auth import init_auth, login, logout
-from utils.database import init_firebase
+from firebase_config import init_firebase  
 import os
 from dotenv import load_dotenv
 
