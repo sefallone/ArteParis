@@ -51,6 +51,7 @@ CATEGORIAS = {
 }
 
 def show():
+    st.write("✅ Página de Inicio cargada correctamente")
     st.markdown("""
         <div class="main-header">
             <h1>📋 Balance Diario - Control Dual</h1>
