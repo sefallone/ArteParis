@@ -5,6 +5,7 @@ from utils.database import guardar_compra, get_compras, get_tasa_cambio, convert
 import plotly.express as px
 
 def show():
+    st.write("✅ Página de Compras cargada correctamente")
     st.markdown("""
         <div class="main-header">
             <h1>🛒 Gestión de Compras</h1>
