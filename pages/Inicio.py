@@ -1,4 +1,4 @@
-# pages/inicio.py
+# pages/Inicio.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
@@ -14,6 +14,8 @@ from utils.database import (
 )
 
 def show():
+    """Función principal que se ejecuta cuando se selecciona la página Inicio"""
+    
     # ==================== HEADER ====================
     st.markdown("""
         <div style="background: linear-gradient(135deg, #2C1810 0%, #4A2818 100%); 
@@ -30,7 +32,7 @@ def show():
                         Bienvenido, <strong>{}</strong>
                     </p>
                     <p style="color: #D4A574; font-size: 0.8rem; margin: 0;">
-                        {} • {}
+                        {} • Rol: {}
                     </p>
                 </div>
             </div>
@@ -78,8 +80,8 @@ def show():
         len(productos) > 0
     )
 
+    # ==================== MOSTRAR MENSAJE SI NO HAY DATOS ====================
     if not hay_datos:
-        # Mostrar mensaje de bienvenida sin datos
         st.info("""
             👋 **Bienvenido a DELICAFE**
             
@@ -107,7 +109,7 @@ def show():
                 st.session_state['selected_page'] = "Inventario"
                 st.rerun()
         
-        # Mostrar datos de ejemplo si el usuario quiere
+        # Opción para cargar datos de ejemplo
         with st.expander("📝 Cargar datos de ejemplo", expanded=False):
             st.warning("""
                 Esto cargará datos de prueba para que puedas ver el sistema en acción.
@@ -122,7 +124,7 @@ def show():
     # ==================== KPI CARDS ====================
     st.markdown("### 📊 Indicadores")
     
-    # Calcular KPIs con manejo de errores
+    # Calcular KPIs
     balance_bs = balance_hoy.get('balance_final_bs', 0) if balance_hoy else 0
     balance_usd = balance_hoy.get('balance_final_usd', 0) if balance_hoy else 0
     
@@ -246,7 +248,6 @@ def show():
     with col1:
         st.markdown("#### 📈 Ventas Últimos 7 Días")
         
-        # Datos de ventas semanales
         try:
             fechas = [(date.today() - timedelta(days=i)).isoformat() for i in range(7, 0, -1)]
             ventas_semana = []
@@ -277,7 +278,7 @@ def show():
             st.info("No hay datos suficientes para mostrar el gráfico")
     
     with col2:
-        st.markdown("#### 💰 Balance Diario (Últimos 7 días)")
+        st.markdown("#### 💰 Evolución del Balance (7 días)")
         
         try:
             balances = []
@@ -341,7 +342,6 @@ def show():
         """, unsafe_allow_html=True)
     
     with col3:
-        # Ventas del mes
         try:
             inicio_mes = date.today().replace(day=1).isoformat()
             ventas_mes = get_ventas(inicio_mes, fecha_hoy)
