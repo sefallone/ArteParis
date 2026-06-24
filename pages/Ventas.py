@@ -5,7 +5,7 @@ from datetime import datetime, date, timedelta
 from utils.database import (
     guardar_venta, get_ventas, get_tasa_cambio, 
     get_balance_diario, guardar_balance_diario,
-    clear_cache
+    clear_cache, get_db
 )
 import plotly.express as px
 import uuid
@@ -18,16 +18,16 @@ def show():
     """, unsafe_allow_html=True)
     
     # Pestañas
-    tab1, tab2 = st.tabs(["📊 Registro de Ventas", "📝 Registrar Ventas del Día"])
+    tab1, tab2 = st.tabs(["📊 Resumen de Ventas", "📝 Registrar Ventas del Día"])
     
     with tab1:
-        mostrar_ventas()
+        mostrar_resumen_ventas()
     
     with tab2:
         registrar_ventas_dia()
 
-def mostrar_ventas():
-    """Muestra las ventas registradas"""
+def mostrar_resumen_ventas():
+    """Muestra el resumen de ventas con gráficos"""
     
     # Filtros
     col1, col2 = st.columns(2)
@@ -49,34 +49,49 @@ def mostrar_ventas():
     total_ventas = sum(v.get('total_bs', 0) for v in ventas)
     tasa = get_tasa_cambio()
     total_usd = total_ventas / tasa if tasa > 0 else 0
-    num_ventas = len(ventas)
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Ventas", f"Bs. {total_ventas:,.2f}")
     with col2:
         st.metric("Total en $", f"${total_usd:,.2f}")
-    with col3:
-        st.metric("Número de Ventas", num_ventas)
     
-    # Mostrar ventas por día
+    # Gráfico de evolución por tipo de ingreso
+    st.subheader("📈 Evolución de Ventas por Método de Pago")
+    
     df = pd.DataFrame(ventas)
     
-    # Agrupar por fecha
-    if 'fecha' in df.columns:
-        ventas_por_dia = df.groupby('fecha')['total_bs'].sum().reset_index()
-        ventas_por_dia['fecha'] = pd.to_datetime(ventas_por_dia['fecha'])
-        ventas_por_dia = ventas_por_dia.sort_values('fecha')
+    if 'metodo_pago' in df.columns and 'fecha' in df.columns:
+        # Agrupar por fecha y método de pago
+        df_evolucion = df.groupby(['fecha', 'metodo_pago'])['total_bs'].sum().reset_index()
+        df_evolucion['fecha'] = pd.to_datetime(df_evolucion['fecha'])
+        df_evolucion = df_evolucion.sort_values('fecha')
         
-        # Gráfico de ventas diarias
-        fig = px.bar(ventas_por_dia, x='fecha', y='total_bs',
-                     title='Ventas Diarias',
-                     color_discrete_sequence=['#8B4513'])
+        # Crear gráfico de barras apiladas o líneas
+        fig = px.line(df_evolucion, x='fecha', y='total_bs', color='metodo_pago',
+                      title='Evolución de Ventas por Método de Pago',
+                      color_discrete_sequence=px.colors.qualitative.Set2)
         fig.update_layout(
             xaxis_title="Fecha",
-            yaxis_title="Total (Bs.)"
+            yaxis_title="Total (Bs.)",
+            legend_title="Método de Pago"
         )
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Gráfico de distribución por método de pago (últimos 30 días)
+        st.subheader("📊 Distribución por Método de Pago")
+        
+        # Filtrar últimos 30 días
+        fecha_limite = date.today() - timedelta(days=30)
+        df_reciente = df[pd.to_datetime(df['fecha']) >= pd.to_datetime(fecha_limite)]
+        
+        if not df_reciente.empty:
+            df_metodos = df_reciente.groupby('metodo_pago')['total_bs'].sum().reset_index()
+            
+            fig_pie = px.pie(df_metodos, values='total_bs', names='metodo_pago',
+                             title='Distribución de Ventas por Método (Últimos 30 días)',
+                             color_discrete_sequence=px.colors.qualitative.Set2)
+            st.plotly_chart(fig_pie, use_container_width=True)
     
     # Tabla detallada
     st.subheader("📋 Detalle de Ventas")
@@ -132,8 +147,8 @@ def registrar_ventas_dia():
         
         if st.button("🗑️ Eliminar ventas de esta fecha y volver a registrar"):
             # Eliminar ventas de esta fecha
+            db = get_db()
             for venta in ventas_existentes:
-                db = get_db()
                 db.collection('ventas').document(venta['id']).delete()
             
             # Limpiar caché
@@ -146,7 +161,12 @@ def registrar_ventas_dia():
     
     st.info(f"💱 Tasa de cambio para {fecha_venta.strftime('%d/%m/%Y')}: {tasa:,.2f} Bs/$")
     
-    # Formulario de registro de ventas
+    # ============ FORMULARIO CON ACTUALIZACIÓN EN TIEMPO REAL ============
+    
+    # Crear contenedor para el resumen dinámico
+    contenedor_resumen = st.container()
+    
+    # Contenedor para el formulario
     with st.form("registro_ventas_dia"):
         st.markdown("### 💰 Ingresos del Día")
         st.markdown("Ingresa los totales por cada método de pago:")
@@ -160,7 +180,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                key="punto1"
+                key="punto1",
+                value=0.0
             )
             
             total_punto2 = st.number_input(
@@ -168,7 +189,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                key="punto2"
+                key="punto2",
+                value=0.0
             )
             
             total_biopago = st.number_input(
@@ -176,7 +198,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                key="biopago"
+                key="biopago",
+                value=0.0
             )
             
             total_efectivo_bs = st.number_input(
@@ -184,7 +207,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                key="efectivo_bs"
+                key="efectivo_bs",
+                value=0.0
             )
         
         with col2:
@@ -193,7 +217,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=10.0,
                 format="%.2f",
-                key="efectivo_usd"
+                key="efectivo_usd",
+                value=0.0
             )
             
             total_pago_movil = st.number_input(
@@ -201,7 +226,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                key="pago_movil"
+                key="pago_movil",
+                value=0.0
             )
             
             total_zelle = st.number_input(
@@ -209,7 +235,8 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=10.0,
                 format="%.2f",
-                key="zelle"
+                key="zelle",
+                value=0.0
             )
             
             total_transferencia = st.number_input(
@@ -217,10 +244,19 @@ def registrar_ventas_dia():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                key="transferencia"
+                key="transferencia",
+                value=0.0
             )
         
-        # Calcular totales
+        # Observaciones
+        observaciones = st.text_area("Observaciones (opcional)")
+        
+        # Botón para guardar
+        submitted = st.form_submit_button("💾 Guardar Ventas del Día", use_container_width=True)
+        
+        # ============ PROCESAR EL FORMULARIO ============
+        
+        # Calcular totales (dentro del form, pero se actualiza al hacer submit)
         total_bs = (
             total_punto1 + total_punto2 + total_biopago + 
             total_efectivo_bs + total_pago_movil + total_transferencia
@@ -228,6 +264,7 @@ def registrar_ventas_dia():
         
         total_usd = total_efectivo_usd + total_zelle
         
+        # Mostrar resumen DENTRO del formulario (se actualiza al hacer submit)
         st.markdown("---")
         st.markdown("### 📊 Resumen de Ventas")
         
@@ -237,67 +274,59 @@ def registrar_ventas_dia():
         with col2:
             st.metric("Total en Dólares", f"${total_usd:,.2f}")
         with col3:
-            # Convertir USD a Bs
             total_usd_bs = total_usd * tasa if tasa > 0 else 0
             total_general = total_bs + total_usd_bs
             st.metric("Total General", f"Bs. {total_general:,.2f}")
         
-        # Observaciones
-        observaciones = st.text_area("Observaciones (opcional)")
-        
-        # Botón para guardar
-        submitted = st.form_submit_button("💾 Guardar Ventas del Día", use_container_width=True)
-        
         if submitted:
             if total_bs == 0 and total_usd == 0:
                 st.error("❌ Por favor ingresa al menos un monto")
-                return
-            
-            # Guardar cada método de pago como una venta
-            ventas_guardadas = []
-            
-            # Función para guardar cada venta
-            def guardar_venta_individual(metodo, monto_bs, monto_usd=0):
-                if monto_bs > 0 or monto_usd > 0:
-                    venta_data = {
-                        'fecha': fecha_str,
-                        'metodo_pago': metodo,
-                        'total_bs': monto_bs,
-                        'total_usd': monto_usd,
-                        'total': monto_bs + (monto_usd * tasa if tasa > 0 else 0),
-                        'tasa_cambio': tasa,
-                        'usuario_creacion': st.session_state.user_data.get('id', ''),
-                        'observaciones': observaciones
-                    }
-                    
-                    resultado = guardar_venta(venta_data)
-                    if resultado:
-                        ventas_guardadas.append(metodo)
-                    return resultado
-                return None
-            
-            # Guardar cada método
-            guardar_venta_individual("Punto de Venta 1", total_punto1)
-            guardar_venta_individual("Punto de Venta 2", total_punto2)
-            guardar_venta_individual("Biopago", total_biopago)
-            guardar_venta_individual("Efectivo Bs", total_efectivo_bs)
-            guardar_venta_individual("Efectivo $", 0, total_efectivo_usd)
-            guardar_venta_individual("Pago Móvil", total_pago_movil)
-            guardar_venta_individual("Zelle", 0, total_zelle)
-            guardar_venta_individual("Transferencia", total_transferencia)
-            
-            if ventas_guardadas:
-                st.success(f"✅ Ventas registradas exitosamente para {fecha_venta.strftime('%d/%m/%Y')}")
-                st.balloons()
-                
-                # Actualizar balance automáticamente
-                actualizar_balance_con_ventas(fecha_str, total_general, tasa)
-                
-                # Limpiar caché
-                clear_cache()
-                st.rerun()
             else:
-                st.error("❌ Error al guardar las ventas")
+                # Guardar cada método de pago como una venta
+                ventas_guardadas = []
+                
+                def guardar_venta_individual(metodo, monto_bs, monto_usd=0):
+                    if monto_bs > 0 or monto_usd > 0:
+                        venta_data = {
+                            'fecha': fecha_str,
+                            'metodo_pago': metodo,
+                            'total_bs': monto_bs,
+                            'total_usd': monto_usd,
+                            'total': monto_bs + (monto_usd * tasa if tasa > 0 else 0),
+                            'tasa_cambio': tasa,
+                            'usuario_creacion': st.session_state.user_data.get('id', ''),
+                            'observaciones': observaciones
+                        }
+                        resultado = guardar_venta(venta_data)
+                        if resultado:
+                            ventas_guardadas.append(metodo)
+                        return resultado
+                    return None
+                
+                # Guardar cada método
+                guardar_venta_individual("Punto de Venta 1", total_punto1)
+                guardar_venta_individual("Punto de Venta 2", total_punto2)
+                guardar_venta_individual("Biopago", total_biopago)
+                guardar_venta_individual("Efectivo Bs", total_efectivo_bs)
+                guardar_venta_individual("Efectivo $", 0, total_efectivo_usd)
+                guardar_venta_individual("Pago Móvil", total_pago_movil)
+                guardar_venta_individual("Zelle", 0, total_zelle)
+                guardar_venta_individual("Transferencia", total_transferencia)
+                
+                if ventas_guardadas:
+                    st.success(f"✅ Ventas registradas exitosamente para {fecha_venta.strftime('%d/%m/%Y')}")
+                    st.balloons()
+                    
+                    # Actualizar balance automáticamente
+                    actualizar_balance_con_ventas(fecha_str, total_general, tasa)
+                    
+                    # Limpiar caché
+                    clear_cache()
+                    
+                    # ✅ LIMPIAR EL FORMULARIO - Usar rerun para resetear
+                    st.rerun()
+                else:
+                    st.error("❌ Error al guardar las ventas")
 
 def actualizar_balance_con_ventas(fecha_str, total_ventas, tasa):
     """Actualiza el balance con las ventas del día"""
