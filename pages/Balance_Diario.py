@@ -1,4 +1,4 @@
-# pages/Balance_Diario.py - Versión corregida
+# pages/Balance_Diario.py - Con keys únicas para todos los widgets
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
@@ -84,15 +84,19 @@ def show():
 def mostrar_balance():
     """Muestra el balance del día en ambas monedas"""
     
-    # Selector de fecha
+    # Selector de fecha con key única
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        fecha_seleccionada = st.date_input("Fecha del Balance", value=date.today())
+        fecha_seleccionada = st.date_input(
+            "Fecha del Balance",
+            value=date.today(),
+            key="fecha_balance_principal"  # ✅ Key única
+        )
     with col2:
-        if st.button("🔄 Generar Balance"):
+        if st.button("🔄 Generar Balance", key="btn_generar_balance"):
             generar_balance_diario(fecha_seleccionada)
     with col3:
-        if st.button("📋 Actualizar"):
+        if st.button("📋 Actualizar", key="btn_actualizar_balance"):
             clear_cache()
             st.rerun()
     
@@ -108,12 +112,17 @@ def mostrar_balance():
         with st.expander("🚀 Iniciar Balance del Día", expanded=True):
             col1, col2 = st.columns(2)
             with col1:
-                balance_inicial_bs = st.number_input("Balance Inicial en Bs", value=0.0, step=10000.0)
+                balance_inicial_bs = st.number_input(
+                    "Balance Inicial en Bs",
+                    value=0.0,
+                    step=10000.0,
+                    key="balance_inicial_input"  # ✅ Key única
+                )
             with col2:
                 if tasa > 0:
                     st.metric("Equivalente en $", f"${balance_inicial_bs / tasa:,.2f}")
             
-            if st.button("Confirmar Inicio", use_container_width=True):
+            if st.button("Confirmar Inicio", key="btn_confirmar_inicio", use_container_width=True):
                 nuevo_balance = crear_balance_inicial(fecha_str, tasa, balance_inicial_bs, balance_inicial_bs / tasa if tasa > 0 else 0)
                 guardar_balance_diario(nuevo_balance)
                 st.success("✅ Balance iniciado")
@@ -242,7 +251,7 @@ def mostrar_resumen_dual(balance, tasa):
                 st.write(f"Equivalente: ${total_bs / tasa:,.2f}" if tasa > 0 else "")
 
 def mostrar_libro_mayor_dual(balance):
-    """Muestra el libro mayor en formato dual - CORREGIDO"""
+    """Muestra el libro mayor en formato dual"""
     
     st.markdown("---")
     st.subheader("📋 Libro Mayor (Dual)")
@@ -256,12 +265,10 @@ def mostrar_libro_mayor_dual(balance):
     # Crear DataFrame
     df = pd.DataFrame(transacciones)
     
-    # ✅ VERIFICAR Y COMPLETAR CAMPOS FALTANTES
-    # Si no existe la columna 'moneda', crearla con valor por defecto
+    # Verificar y completar campos faltantes
     if 'moneda' not in df.columns:
-        df['moneda'] = 'Mixto'  # Valor por defecto
+        df['moneda'] = 'Mixto'
     
-    # Asegurar que todas las columnas necesarias existan
     columnas_requeridas = ['fecha', 'descripcion', 'moneda', 'monto_bs', 'monto_usd', 'tasa_aplicada', 'saldo_bs', 'saldo_usd']
     for col in columnas_requeridas:
         if col not in df.columns:
@@ -289,7 +296,7 @@ def mostrar_libro_mayor_dual(balance):
         
         with st.expander(f"📁 {categoria} (Bs. {total_bs:,.2f} | ${total_usd:,.2f})", expanded=True):
             
-            # Mostrar tabla - usando solo columnas que existen
+            # Mostrar tabla
             columnas_display = ['fecha', 'descripcion', 'moneda', 'monto_bs', 'monto_usd', 'tasa_aplicada', 'saldo_bs', 'saldo_usd']
             columnas_existentes = [col for col in columnas_display if col in df_cat.columns]
             
@@ -327,16 +334,18 @@ def mostrar_libro_mayor_dual(balance):
                     use_container_width=True,
                     hide_index=True
                 )
-            else:
-                st.write("No hay datos para mostrar")
 
 def registrar_transaccion():
     """Registra una transacción en ambas monedas"""
     
     st.subheader("➕ Registrar Transacción")
     
-    # Tasa actual
-    fecha = st.date_input("Fecha", value=date.today())
+    # Tasa actual con key única
+    fecha = st.date_input(
+        "Fecha",
+        value=date.today(),
+        key="fecha_transaccion"  # ✅ Key única
+    )
     tasa = get_tasa_cambio(fecha.isoformat())
     
     st.info(f"💱 Tasa de Cambio: {tasa:,.2f} Bs/$")
@@ -421,7 +430,11 @@ def configurar_tasa():
     
     st.subheader("💱 Configuración de Tasa de Cambio")
     
-    fecha = st.date_input("Fecha", value=date.today())
+    fecha = st.date_input(
+        "Fecha",
+        value=date.today(),
+        key="fecha_tasa"  # ✅ Key única
+    )
     fecha_str = fecha.isoformat()
     tasa_actual = get_tasa_cambio(fecha_str)
     
@@ -435,10 +448,11 @@ def configurar_tasa():
             value=float(tasa_actual),
             min_value=0.01,
             step=0.01,
-            format="%.2f"
+            format="%.2f",
+            key="nueva_tasa_input"  # ✅ Key única
         )
         
-        if st.button("💾 Guardar Tasa", use_container_width=True):
+        if st.button("💾 Guardar Tasa", key="btn_guardar_tasa", use_container_width=True):
             guardar_tasa_cambio(nueva_tasa, fecha_str)
             st.success(f"✅ Tasa guardada: {nueva_tasa:,.2f} Bs/$")
             
@@ -455,7 +469,7 @@ def configurar_tasa():
         """)
         
         # Mostrar historial rápido
-        if st.button("📊 Ver Historial"):
+        if st.button("📊 Ver Historial", key="btn_historial_tasas"):
             mostrar_historial_tasas()
 
 def guardar_transaccion_dual(fecha, transaccion_data):
@@ -512,7 +526,6 @@ def guardar_transaccion_dual(fecha, transaccion_data):
         nuevo_saldo_bs = ultimo_saldo_bs + monto_bs
         nuevo_saldo_usd = ultimo_saldo_usd + monto_usd
     
-    # ✅ Incluir el campo 'moneda' en la transacción
     transaccion = {
         'id': str(uuid.uuid4()),
         'fecha': fecha_str,
@@ -521,7 +534,7 @@ def guardar_transaccion_dual(fecha, transaccion_data):
         'categoria': transaccion_data['categoria'],
         'subcategoria': transaccion_data['subcategoria'],
         'tipo': tipo,
-        'moneda': transaccion_data['moneda'],  # ✅ Campo agregado
+        'moneda': transaccion_data['moneda'],
         'monto_bs': monto_bs,
         'monto_usd': monto_usd,
         'tasa_aplicada': transaccion_data['tasa_aplicada'],
@@ -669,14 +682,22 @@ def reportes_balance():
     
     st.subheader("📈 Reportes y Análisis")
     
-    # Selector de período
+    # Selector de período con keys únicas
     col1, col2 = st.columns(2)
     with col1:
-        fecha_inicio = st.date_input("Fecha Inicio", value=date.today() - timedelta(days=30))
+        fecha_inicio = st.date_input(
+            "Fecha Inicio",
+            value=date.today() - timedelta(days=30),
+            key="fecha_inicio_reporte"  # ✅ Key única
+        )
     with col2:
-        fecha_fin = st.date_input("Fecha Fin", value=date.today())
+        fecha_fin = st.date_input(
+            "Fecha Fin",
+            value=date.today(),
+            key="fecha_fin_reporte"  # ✅ Key única
+        )
     
-    if st.button("📊 Generar Reporte", use_container_width=True):
+    if st.button("📊 Generar Reporte", key="btn_generar_reporte", use_container_width=True):
         # Obtener balances del período
         balances = obtener_balances_periodo(fecha_inicio, fecha_fin)
         
