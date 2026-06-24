@@ -3,6 +3,8 @@ from firebase_config import get_db
 import datetime
 from typing import Dict, List, Optional
 
+
+
 def get_tasa_cambio(fecha=None):
     """Obtiene la tasa de cambio para una fecha específica"""
     if fecha is None:
@@ -57,6 +59,7 @@ def guardar_producto(data: Dict):
         print(f"Error guardando producto: {e}")
         return None
 
+@st.cache_data(ttl=60)
 def get_productos(tipo=None):
     """Obtiene productos filtrados por tipo"""
     db = get_db()
@@ -94,6 +97,7 @@ def guardar_venta(data: Dict):
         print(f"Error guardando venta: {e}")
         return None
 
+@st.cache_data(ttl=60)
 def get_ventas(fecha_inicio=None, fecha_fin=None):
     """Obtiene ventas en un rango de fechas"""
     db = get_db()
@@ -133,6 +137,7 @@ def guardar_compra(data: Dict):
         print(f"Error guardando compra: {e}")
         return None
 
+@st.cache_data(ttl=60)
 def get_compras(fecha_inicio=None, fecha_fin=None):
     """Obtiene compras en un rango de fechas"""
     db = get_db()
@@ -168,6 +173,7 @@ def guardar_balance_diario(data: Dict):
         print(f"Error guardando balance: {e}")
         return None
 
+@st.cache_data(ttl=60)
 def get_balance_diario(fecha=None):
     """Obtiene el balance diario para una fecha"""
     if fecha is None:
@@ -198,3 +204,7 @@ def convertir_moneda(monto_bs, tasa=None):
         'usd': monto_bs / tasa if tasa > 0 else 0,
         'tasa': tasa
     }
+
+def clear_cache():
+    """Limpia el caché de la aplicación"""
+    st.cache_data.clear()
