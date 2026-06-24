@@ -68,3 +68,35 @@ def check_permisos(jerarquia_requerida):
 
 def get_current_user():
     return st.session_state.user_data
+
+# utils/auth.py - Agregar esta función
+def crear_usuario(username, password, nombre, email):
+    """Crea un nuevo usuario en Firebase"""
+    try:
+        db = get_db()
+        
+        # Verificar que el usuario no exista
+        users_ref = db.collection('usuarios')
+        query = users_ref.where('username', '==', username).limit(1)
+        docs = query.get()
+        
+        if len(list(docs)) > 0:
+            return {'success': False, 'message': 'El usuario ya existe'}
+        
+        # Crear usuario
+        user_data = {
+            'username': username,
+            'password_hash': hash_password(password),
+            'nombre': nombre,
+            'email': email,
+            'rol': 'usuario',
+            'jerarquia': 1,
+            'fecha_creacion': datetime.now()
+        }
+        
+        doc_ref = db.collection('usuarios').add(user_data)
+        
+        return {'success': True, 'message': 'Usuario creado exitosamente', 'id': doc_ref[1].id}
+    
+    except Exception as e:
+        return {'success': False, 'message': f'Error: {str(e)}'}
