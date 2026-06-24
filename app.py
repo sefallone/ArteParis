@@ -99,10 +99,85 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+def mostrar_diagnostico():
+    """Muestra información de diagnóstico en el sidebar"""
+    
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🔧 Diagnóstico")
+        
+        try:
+            from firebase_config import get_db
+            import hashlib
+            
+            db = get_db()
+            
+            # 1. Verificar conexión
+            if db is None:
+                st.error("❌ Error: No se pudo conectar a Firebase")
+                st.info("💡 Verifica que FIREBASE_SERVICE_ACCOUNT esté configurada en Render")
+                return
+            else:
+                st.success("✅ Conexión a Firebase OK")
+            
+            # 2. Verificar colección 'usuarios'
+            try:
+                users_ref = db.collection('usuarios')
+                query = users_ref.where('username', '==', 'admin').limit(1)
+                docs = query.get()
+                
+                if not docs:
+                    st.warning("⚠️ Usuario 'admin' no encontrado")
+                    st.info("💡 Crea el usuario en Firebase Console → Firestore → Colección 'usuarios'")
+                    return
+                
+                # 3. Mostrar datos del usuario
+                for doc in docs:
+                    user_data = doc.to_dict()
+                    
+                    st.write("**📝 Datos del usuario:**")
+                    st.write(f"- Username: `{user_data.get('username')}`")
+                    st.write(f"- Nombre: `{user_data.get('nombre')}`")
+                    st.write(f"- Rol: `{user_data.get('rol')}`")
+                    
+                    # 4. Verificar hash de contraseña
+                    stored_hash = user_data.get('password_hash', '')
+                    test_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+                    
+                    st.write("**🔑 Verificación de contraseña:**")
+                    st.write(f"- Hash almacenado: `{stored_hash[:20]}...`")
+                    st.write(f"- Hash esperado (admin123): `{test_hash[:20]}...`")
+                    
+                    if stored_hash == test_hash:
+                        st.success("✅ Hash de contraseña coincide")
+                        st.info("💡 Deberías poder iniciar sesión con: admin / admin123")
+                    else:
+                        st.error("❌ Hash de contraseña NO coincide")
+                        st.info("💡 Actualiza el hash en Firebase Console con: `8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918`")
+                        
+                        # Mostrar opción para actualizar automáticamente
+                        if st.button("🔧 Actualizar hash automáticamente"):
+                            try:
+                                doc.reference.update({'password_hash': test_hash})
+                                st.success("✅ Hash actualizado correctamente")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al actualizar: {e}")
+                
+            except Exception as e:
+                st.error(f"❌ Error al leer la colección: {e}")
+                st.info("💡 Verifica que la colección 'usuarios' exista en Firestore")
+                
+        except Exception as e:
+            st.error(f"❌ Error general: {e}")
+
+
 def main():
     # Mostrar logo en sidebar
     if os.path.exists("assets/logo_nuevo.jpg"):
         st.sidebar.image("assets/logo_nuevo.jpg", use_column_width=True)
+
+    mostrar_diagnostico()
     
     # Estado de autenticación
     if 'authenticated' not in st.session_state:
