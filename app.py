@@ -1,8 +1,7 @@
-# app.py - Versión CORREGIDA
 import streamlit as st
 from streamlit_option_menu import option_menu
 from utils.auth import init_auth, login, logout
-from firebase_config import init_firebase  
+from firebase_config import init_firebase
 import os
 from dotenv import load_dotenv
 
@@ -160,21 +159,22 @@ def main():
                 logout()
                 st.rerun()
         
-        # En app.py, actualiza esta parte:
-
+        # Cargar página seleccionada - CORREGIDO
         if selected == "Inicio":
-            from pages.inicio import show as page_show
+            from pages.inicio import show
+            show()
         elif selected == "Inventario":
-            from pages.inventario import show as page_show
+            from pages.inventario import show
+            show()
         elif selected == "Compras":
-            from pages.compras import show as page_show
+            from pages.compras import show
+            show()
         elif selected == "Ventas":
-            from pages.ventas import show as page_show
+            from pages.ventas import show
+            show()
         elif selected == "Balance Diario":
-            from pages.balance_diario import show as page_show
-
-# Luego llamas a la función
-page_show()
+            from pages.balance_diario import show
+            show()
 
 if __name__ == "__main__":
     main()
