@@ -1,4 +1,4 @@
-# pages/Inicio.py
+# pages/Inicio.py - VERSIÓN COMPLETA CON FORMULARIOS VISIBLES
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
@@ -10,12 +10,16 @@ from utils.database import (
     get_tasa_cambio,
     get_ventas,
     get_compras,
-    get_productos
+    get_productos,
+    guardar_producto,
+    guardar_venta,
+    guardar_compra,
+    guardar_tasa_cambio,
+    guardar_balance_diario
 )
 
 def show():
     """Función principal que se ejecuta cuando se selecciona la página Inicio"""
-    st.write("✅ Página de Inicio cargada correctamente")
     
     # ==================== HEADER ====================
     st.markdown("""
@@ -44,433 +48,588 @@ def show():
         st.session_state.user_data.get('rol', 'Usuario')
     ), unsafe_allow_html=True)
 
-    # ==================== OBTENER DATOS ====================
+    # ==================== TABS PRINCIPALES ====================
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Dashboard",
+        "📦 Inventario",
+        "💰 Ventas",
+        "🛒 Compras",
+        "📋 Balance Diario"
+    ])
+    
+    with tab1:
+        mostrar_dashboard()
+    
+    with tab2:
+        mostrar_inventario()
+    
+    with tab3:
+        mostrar_ventas()
+    
+    with tab4:
+        mostrar_compras()
+    
+    with tab5:
+        mostrar_balance_diario()
+
+# ==================== TAB 1: DASHBOARD ====================
+def mostrar_dashboard():
+    """Muestra el dashboard con KPIs y gráficos"""
+    
+    st.markdown("### 📊 Panel de Control")
+    
+    # Obtener datos
     fecha_hoy = date.today().isoformat()
+    tasa = get_tasa_cambio(fecha_hoy)
+    balance = get_balance_diario(fecha_hoy)
+    ventas = get_ventas(fecha_hoy, fecha_hoy)
+    compras = get_compras(fecha_hoy, fecha_hoy)
+    productos = get_productos()
     
-    try:
-        tasa = get_tasa_cambio(fecha_hoy)
-    except:
-        tasa = 0
-    
-    try:
-        balance_hoy = get_balance_diario(fecha_hoy)
-    except:
-        balance_hoy = None
-    
-    try:
-        ventas_hoy = get_ventas(fecha_hoy, fecha_hoy)
-    except:
-        ventas_hoy = []
-    
-    try:
-        compras_hoy = get_compras(fecha_hoy, fecha_hoy)
-    except:
-        compras_hoy = []
-    
-    try:
-        productos = get_productos()
-    except:
-        productos = []
-
-    # ==================== VERIFICAR SI HAY DATOS ====================
-    hay_datos = (
-        tasa > 0 or 
-        balance_hoy is not None or 
-        len(ventas_hoy) > 0 or 
-        len(compras_hoy) > 0 or 
-        len(productos) > 0
-    )
-
-    # ==================== MOSTRAR MENSAJE SI NO HAY DATOS ====================
-    if not hay_datos:
-        st.info("""
-            👋 **Bienvenido a DELICAFE**
-            
-            Parece que aún no hay datos en el sistema. Para comenzar:
-            
-            1. Ve a **Balance Diario** y configura la tasa de cambio
-            2. Inicia el balance del día
-            3. Comienza a registrar tus transacciones
-            
-            ¡Los datos se guardarán automáticamente en la nube!
-        """)
-        
-        # Botones de acción rápida
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("💱 Configurar Tasa", use_container_width=True):
-                st.session_state['selected_page'] = "Balance Diario"
-                st.rerun()
-        with col2:
-            if st.button("📊 Ver Balance", use_container_width=True):
-                st.session_state['selected_page'] = "Balance Diario"
-                st.rerun()
-        with col3:
-            if st.button("📦 Gestionar Inventario", use_container_width=True):
-                st.session_state['selected_page'] = "Inventario"
-                st.rerun()
-        
-        # Opción para cargar datos de ejemplo
-        with st.expander("📝 Cargar datos de ejemplo", expanded=False):
-            st.warning("""
-                Esto cargará datos de prueba para que puedas ver el sistema en acción.
-                ¿Quieres continuar?
-            """)
-            if st.button("✅ Sí, cargar datos de ejemplo"):
-                cargar_datos_ejemplo(fecha_hoy)
-                st.rerun()
-        
-        return
-
-    # ==================== KPI CARDS ====================
-    st.markdown("### 📊 Indicadores")
-    
-    # Calcular KPIs
-    balance_bs = balance_hoy.get('balance_final_bs', 0) if balance_hoy else 0
-    balance_usd = balance_hoy.get('balance_final_usd', 0) if balance_hoy else 0
-    
-    total_ventas_bs = sum(v.get('total_bs', v.get('total', 0)) for v in ventas_hoy)
-    total_ventas_usd = total_ventas_bs / tasa if tasa > 0 else 0
-    
-    total_compras_bs = sum(c.get('total_bs', c.get('total', 0)) for c in compras_hoy)
-    total_compras_usd = total_compras_bs / tasa if tasa > 0 else 0
-    
-    total_productos = len(productos)
-    usuarios_activos = 1  # Simplificado
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    with col1:
-        st.markdown(f"""
-            <div style="background: white; padding: 1rem; border-radius: 10px; 
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                        border-left: 4px solid #8B4513; text-align: center;">
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">Balance del Día</p>
-                <p style="color: #2C1810; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    Bs. {balance_bs:,.0f}
-                </p>
-                <p style="color: #8B4513; font-size: 0.8rem; margin: 0;">
-                    ${balance_usd:,.2f}
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-            <div style="background: white; padding: 1rem; border-radius: 10px; 
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                        border-left: 4px solid #D2691E; text-align: center;">
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">Ventas Hoy</p>
-                <p style="color: #2C1810; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    Bs. {total_ventas_bs:,.0f}
-                </p>
-                <p style="color: #D2691E; font-size: 0.8rem; margin: 0;">
-                    ${total_ventas_usd:,.2f}
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-            <div style="background: white; padding: 1rem; border-radius: 10px; 
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                        border-left: 4px solid #F5DEB3; text-align: center;">
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">Compras Hoy</p>
-                <p style="color: #2C1810; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    Bs. {total_compras_bs:,.0f}
-                </p>
-                <p style="color: #D2691E; font-size: 0.8rem; margin: 0;">
-                    ${total_compras_usd:,.2f}
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(f"""
-            <div style="background: white; padding: 1rem; border-radius: 10px; 
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                        border-left: 4px solid #2C1810; text-align: center;">
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">Productos</p>
-                <p style="color: #2C1810; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    {total_productos}
-                </p>
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">
-                    en inventario
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col5:
-        st.markdown(f"""
-            <div style="background: white; padding: 1rem; border-radius: 10px; 
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-                        border-left: 4px solid #8B4513; text-align: center;">
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">Usuarios</p>
-                <p style="color: #2C1810; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    {usuarios_activos}
-                </p>
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">
-                    activos hoy
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-
-    # ==================== ACCESO RÁPIDO ====================
-    st.markdown("---")
-    st.markdown("### 🚀 Acceso Rápido")
-    
+    # KPIs
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("📦 Registrar Venta", use_container_width=True):
-            st.session_state['selected_page'] = "Ventas"
-            st.rerun()
+        balance_bs = balance.get('balance_final_bs', 0) if balance else 0
+        st.metric(
+            "Balance del Día",
+            f"Bs. {balance_bs:,.2f}",
+            delta=f"${balance_bs / tasa:,.2f}" if tasa > 0 else ""
+        )
     
     with col2:
-        if st.button("📝 Registrar Compra", use_container_width=True):
-            st.session_state['selected_page'] = "Compras"
-            st.rerun()
+        total_ventas = sum(v.get('total', 0) for v in ventas)
+        st.metric(
+            "Ventas Hoy",
+            f"Bs. {total_ventas:,.2f}",
+            delta=f"${total_ventas / tasa:,.2f}" if tasa > 0 else ""
+        )
     
     with col3:
-        if st.button("📊 Ver Balance", use_container_width=True):
-            st.session_state['selected_page'] = "Balance Diario"
-            st.rerun()
+        total_compras = sum(c.get('total', 0) for c in compras)
+        st.metric(
+            "Compras Hoy",
+            f"Bs. {total_compras:,.2f}",
+            delta=f"${total_compras / tasa:,.2f}" if tasa > 0 else ""
+        )
     
     with col4:
-        if st.button("📦 Gestionar Inventario", use_container_width=True):
-            st.session_state['selected_page'] = "Inventario"
-            st.rerun()
-
-    # ==================== GRÁFICOS ====================
-    st.markdown("---")
+        st.metric(
+            "Productos",
+            len(productos),
+            delta=f"{len([p for p in productos if p.get('tipo') == 'materia_prima'])} MP"
+        )
     
+    # Gráficos
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📈 Ventas Últimos 7 Días")
-        
+        st.subheader("📈 Ventas Últimos 7 Días")
         try:
             fechas = [(date.today() - timedelta(days=i)).isoformat() for i in range(7, 0, -1)]
-            ventas_semana = []
-            
+            datos = []
             for fecha in fechas:
-                ventas = get_ventas(fecha, fecha)
-                total = sum(v.get('total_bs', v.get('total', 0)) for v in ventas)
-                ventas_semana.append({
+                ventas_dia = get_ventas(fecha, fecha)
+                total = sum(v.get('total', 0) for v in ventas_dia)
+                datos.append({
                     'fecha': datetime.fromisoformat(fecha).strftime('%d/%m'),
-                    'ventas_usd': total / tasa if tasa > 0 else 0
+                    'ventas': total / tasa if tasa > 0 else 0
                 })
             
-            if ventas_semana and any(v['ventas_usd'] > 0 for v in ventas_semana):
-                df = pd.DataFrame(ventas_semana)
-                fig = px.bar(df, x='fecha', y='ventas_usd',
+            if datos and any(d['ventas'] > 0 for d in datos):
+                df = pd.DataFrame(datos)
+                fig = px.bar(df, x='fecha', y='ventas',
                             title='Ventas en USD',
                             color_discrete_sequence=['#8B4513'])
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='#2C1810',
-                    showlegend=False
-                )
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No hay ventas registradas en los últimos 7 días")
+                st.info("No hay datos de ventas disponibles")
         except Exception as e:
             st.info("No hay datos suficientes para mostrar el gráfico")
     
     with col2:
-        st.markdown("#### 💰 Evolución del Balance (7 días)")
+        st.subheader("💱 Tasa de Cambio")
+        st.metric(
+            "Tasa Actual",
+            f"{tasa:,.2f} Bs/$",
+            delta="Actualizada hoy" if tasa > 0 else "No configurada"
+        )
         
-        try:
-            balances = []
-            for i in range(7, 0, -1):
-                fecha = (date.today() - timedelta(days=i)).isoformat()
-                balance = get_balance_diario(fecha)
-                if balance:
-                    balances.append({
-                        'fecha': datetime.fromisoformat(fecha).strftime('%d/%m'),
-                        'balance_usd': balance.get('balance_final_usd', 0)
-                    })
+        # Información adicional
+        st.info("""
+            **💡 Consejo:**
+            - Ve a la pestaña **Balance Diario** para configurar la tasa
+            - Registra tus primeras ventas en la pestaña **Ventas**
+            - Agrega productos en la pestaña **Inventario**
+        """)
+
+# ==================== TAB 2: INVENTARIO ====================
+def mostrar_inventario():
+    """Muestra el formulario y lista de inventario"""
+    
+    st.markdown("### 📦 Gestión de Inventario")
+    
+    # Formulario para agregar producto
+    with st.expander("➕ Agregar Nuevo Producto", expanded=True):
+        with st.form("form_agregar_producto"):
+            col1, col2 = st.columns(2)
             
-            if balances:
-                df = pd.DataFrame(balances)
-                fig = px.line(df, x='fecha', y='balance_usd',
-                             title='Evolución del Balance en USD',
-                             color_discrete_sequence=['#D2691E'])
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='#2C1810',
-                    showlegend=False
+            with col1:
+                nombre = st.text_input("Nombre del Producto*")
+                tipo = st.selectbox(
+                    "Tipo de Inventario*",
+                    options=['materia_prima', 'semi_terminado', 'terminado'],
+                    format_func=lambda x: {
+                        'materia_prima': '📦 Materia Prima',
+                        'semi_terminado': '🔄 Semi-terminado',
+                        'terminado': '✅ Terminado'
+                    }[x]
                 )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No hay balances registrados en los últimos 7 días")
-        except Exception as e:
-            st.info("No hay datos suficientes para mostrar el gráfico")
-
-    # ==================== INFORMACIÓN ADICIONAL ====================
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
-            <div style="background: #FFF8F0; padding: 1rem; border-radius: 10px; 
-                        border: 1px solid #F5DEB3;">
-                <p style="color: #2C1810; font-weight: bold; margin: 0;">💱 Tasa de Cambio</p>
-                <p style="color: #8B4513; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    {tasa:,.2f} Bs/$
-                </p>
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">
-                    {fecha_hoy}
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-            <div style="background: #FFF8F0; padding: 1rem; border-radius: 10px; 
-                        border: 1px solid #F5DEB3;">
-                <p style="color: #2C1810; font-weight: bold; margin: 0;">📦 Inventario</p>
-                <p style="color: #8B4513; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                    {total_productos}
-                </p>
-                <p style="color: #666; font-size: 0.8rem; margin: 0;">
-                    productos registrados
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        try:
-            inicio_mes = date.today().replace(day=1).isoformat()
-            ventas_mes = get_ventas(inicio_mes, fecha_hoy)
-            total_mes_usd = sum(v.get('total_bs', v.get('total', 0)) for v in ventas_mes) / tasa if tasa > 0 else 0
+                cantidad = st.number_input("Cantidad*", min_value=0.0, step=1.0)
             
-            st.markdown(f"""
-                <div style="background: #FFF8F0; padding: 1rem; border-radius: 10px; 
-                            border: 1px solid #F5DEB3;">
-                    <p style="color: #2C1810; font-weight: bold; margin: 0;">📊 Ventas del Mes</p>
-                    <p style="color: #8B4513; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                        ${total_mes_usd:,.2f}
-                    </p>
-                    <p style="color: #666; font-size: 0.8rem; margin: 0;">
-                        {len(ventas_mes)} transacciones
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
-        except:
-            st.markdown(f"""
-                <div style="background: #FFF8F0; padding: 1rem; border-radius: 10px; 
-                            border: 1px solid #F5DEB3;">
-                    <p style="color: #2C1810; font-weight: bold; margin: 0;">📊 Ventas del Mes</p>
-                    <p style="color: #8B4513; font-size: 1.5rem; font-weight: bold; margin: 5px 0;">
-                        $0.00
-                    </p>
-                    <p style="color: #666; font-size: 0.8rem; margin: 0;">
-                        0 transacciones
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
-
-    # ==================== ACTIVIDAD RECIENTE ====================
-    st.markdown("---")
-    st.markdown("### 📋 Actividad Reciente")
+            with col2:
+                precio = st.number_input("Precio Unitario (Bs.)*", min_value=0.0, step=100.0)
+                unidad = st.text_input("Unidad de Medida", placeholder="ej: kg, l, unidad")
+                observaciones = st.text_area("Observaciones")
+            
+            submitted = st.form_submit_button("💾 Guardar Producto", use_container_width=True)
+            
+            if submitted:
+                if not nombre or cantidad <= 0 or precio <= 0:
+                    st.error("❌ Por favor complete todos los campos obligatorios (*)")
+                else:
+                    data = {
+                        'nombre': nombre,
+                        'tipo': tipo,
+                        'cantidad': cantidad,
+                        'precio_unitario': precio,
+                        'unidad': unidad or 'unidad',
+                        'observaciones': observaciones,
+                        'usuario_creacion': st.session_state.user_data.get('id', '')
+                    }
+                    
+                    resultado = guardar_producto(data)
+                    if resultado:
+                        st.success(f"✅ Producto '{nombre}' agregado exitosamente")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error("❌ Error al guardar el producto")
     
-    if balance_hoy:
-        transacciones = balance_hoy.get('transacciones', [])[-5:]
-        if transacciones:
-            df_trans = pd.DataFrame(transacciones)
-            df_trans['fecha'] = pd.to_datetime(df_trans['fecha']).dt.strftime('%d/%m/%Y')
-            df_trans['monto'] = df_trans.apply(
-                lambda x: f"Bs. {x['monto_bs']:,.2f} (${x['monto_usd']:,.2f})", 
-                axis=1
-            )
-            df_trans['tipo_icon'] = df_trans['tipo'].apply(
-                lambda x: '⬆️' if x == 'ingreso' else '⬇️'
+    # Lista de productos
+    st.markdown("### 📋 Productos Registrados")
+    
+    productos = get_productos()
+    
+    if productos:
+        df = pd.DataFrame(productos)
+        
+        # Mostrar tabla
+        display_cols = ['nombre', 'tipo', 'cantidad', 'precio_unitario', 'unidad']
+        if all(col in df.columns for col in display_cols):
+            df_display = df[display_cols].copy()
+            df_display['tipo'] = df_display['tipo'].apply(
+                lambda x: {
+                    'materia_prima': '📦 Materia Prima',
+                    'semi_terminado': '🔄 Semi-terminado',
+                    'terminado': '✅ Terminado'
+                }.get(x, x)
             )
             
             st.dataframe(
-                df_trans[['fecha', 'tipo_icon', 'descripcion', 'categoria', 'monto']],
+                df_display,
+                column_config={
+                    "nombre": "Producto",
+                    "tipo": "Tipo",
+                    "cantidad": "Cantidad",
+                    "precio_unitario": "Precio (Bs.)",
+                    "unidad": "Unidad"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.info("📝 No hay productos registrados. Agrega tu primer producto usando el formulario de arriba.")
+
+# ==================== TAB 3: VENTAS ====================
+def mostrar_ventas():
+    """Muestra el formulario y lista de ventas"""
+    
+    st.markdown("### 💰 Gestión de Ventas")
+    
+    tasa_actual = get_tasa_cambio()
+    
+    # Formulario para nueva venta
+    with st.expander("➕ Registrar Nueva Venta", expanded=True):
+        st.info(f"💱 Tasa de cambio actual: {tasa_actual:,.2f} Bs/$")
+        
+        with st.form("form_nueva_venta"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                cliente = st.text_input("Cliente (opcional)")
+                metodo_pago = st.selectbox(
+                    "Método de Pago*",
+                    options=['Efectivo', 'Transferencia', 'Pago Móvil', 'Tarjeta', 'Zelle']
+                )
+            
+            with col2:
+                tipo_venta = st.selectbox(
+                    "Tipo de Venta",
+                    options=['Normal', 'Mayorista', 'Especial']
+                )
+            
+            # Productos
+            st.subheader("🛒 Productos Vendidos")
+            num_productos = st.number_input("Número de productos", min_value=1, max_value=10, value=1)
+            
+            productos = []
+            for i in range(num_productos):
+                with st.container():
+                    st.markdown(f"**Producto {i+1}**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        nombre = st.text_input(f"Nombre", key=f"venta_prod_{i}")
+                    with col2:
+                        cantidad = st.number_input(f"Cantidad", min_value=0.0, step=1.0, key=f"venta_cant_{i}")
+                    with col3:
+                        precio = st.number_input(f"Precio Unitario", min_value=0.0, step=100.0, key=f"venta_precio_{i}")
+                    
+                    if nombre and cantidad > 0 and precio > 0:
+                        productos.append({
+                            'nombre': nombre,
+                            'cantidad': cantidad,
+                            'precio_unitario': precio
+                        })
+            
+            # Mostrar subtotal
+            if productos:
+                subtotal = sum(p['cantidad'] * p['precio_unitario'] for p in productos)
+                iva = subtotal * 0.16
+                total = subtotal + iva
+                
+                st.markdown("---")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Subtotal", f"Bs. {subtotal:,.2f}")
+                with col2:
+                    st.metric("IVA (16%)", f"Bs. {iva:,.2f}")
+                with col3:
+                    st.metric("Total", f"Bs. {total:,.2f}")
+            
+            observaciones = st.text_area("Observaciones")
+            
+            submitted = st.form_submit_button("💾 Registrar Venta", use_container_width=True)
+            
+            if submitted:
+                if not productos:
+                    st.error("❌ Por favor agregue al menos un producto")
+                    return
+                
+                if not metodo_pago:
+                    st.error("❌ Por favor seleccione un método de pago")
+                    return
+                
+                # Calcular totales
+                subtotal = sum(p['cantidad'] * p['precio_unitario'] for p in productos)
+                iva = subtotal * 0.16
+                total = subtotal + iva
+                
+                data = {
+                    'cliente': cliente or 'Cliente General',
+                    'metodo_pago': metodo_pago,
+                    'tipo_venta': tipo_venta,
+                    'productos': productos,
+                    'subtotal': subtotal,
+                    'iva': iva,
+                    'total': total,
+                    'observaciones': observaciones,
+                    'usuario_creacion': st.session_state.user_data.get('id', '')
+                }
+                
+                resultado = guardar_venta(data)
+                if resultado:
+                    st.success(f"✅ Venta registrada exitosamente")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ Error al registrar la venta")
+    
+    # Lista de ventas
+    st.markdown("### 📋 Ventas Registradas")
+    
+    fecha_hoy = date.today().isoformat()
+    ventas = get_ventas(fecha_hoy, fecha_hoy)
+    
+    if ventas:
+        df = pd.DataFrame(ventas)
+        
+        # Mostrar tabla simplificada
+        display_cols = ['fecha', 'cliente', 'metodo_pago', 'total']
+        if all(col in df.columns for col in display_cols):
+            df_display = df[display_cols].copy()
+            df_display['total'] = df_display['total'].apply(lambda x: f"Bs. {x:,.2f}")
+            
+            st.dataframe(
+                df_display,
                 column_config={
                     "fecha": "Fecha",
-                    "tipo_icon": "",
+                    "cliente": "Cliente",
+                    "metodo_pago": "Método de Pago",
+                    "total": "Total"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.info("📝 No hay ventas registradas hoy. Registra tu primera venta usando el formulario de arriba.")
+
+# ==================== TAB 4: COMPRAS ====================
+def mostrar_compras():
+    """Muestra el formulario y lista de compras"""
+    
+    st.markdown("### 🛒 Gestión de Compras")
+    
+    tasa_actual = get_tasa_cambio()
+    
+    # Formulario para nueva compra
+    with st.expander("➕ Generar Nueva Orden de Compra", expanded=True):
+        st.info(f"💱 Tasa de cambio actual: {tasa_actual:,.2f} Bs/$")
+        
+        with st.form("form_nueva_compra"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                proveedor = st.text_input("Proveedor*")
+                tipo_materia = st.selectbox(
+                    "Tipo de Materia Prima*",
+                    options=['basica', 'intermedia', 'extra'],
+                    format_func=lambda x: {
+                        'basica': '🥩 Básica',
+                        'intermedia': '🧂 Intermedia',
+                        'extra': '🧁 Extra'
+                    }[x]
+                )
+            
+            with col2:
+                numero_orden = st.text_input("Número de Orden*")
+                fecha_entrega = st.date_input("Fecha de Entrega Estimada")
+            
+            # Productos
+            st.subheader("📦 Productos")
+            num_productos = st.number_input("Número de productos", min_value=1, max_value=10, value=1)
+            
+            productos = []
+            for i in range(num_productos):
+                with st.container():
+                    st.markdown(f"**Producto {i+1}**")
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        nombre = st.text_input(f"Nombre", key=f"compra_nom_{i}")
+                    with col2:
+                        cantidad = st.number_input(f"Cantidad", min_value=0.0, step=1.0, key=f"compra_cant_{i}")
+                    with col3:
+                        precio = st.number_input(f"Precio Unitario", min_value=0.0, step=100.0, key=f"compra_precio_{i}")
+                    with col4:
+                        unidad = st.text_input(f"Unidad", key=f"compra_unid_{i}")
+                    
+                    if nombre and cantidad > 0 and precio > 0:
+                        productos.append({
+                            'nombre': nombre,
+                            'cantidad': cantidad,
+                            'precio_unitario': precio,
+                            'unidad': unidad or 'unidad'
+                        })
+            
+            observaciones = st.text_area("Observaciones")
+            
+            submitted = st.form_submit_button("💾 Generar Orden de Compra", use_container_width=True)
+            
+            if submitted:
+                if not proveedor or not numero_orden:
+                    st.error("❌ Por favor complete los campos obligatorios")
+                    return
+                
+                if not productos:
+                    st.error("❌ Por favor agregue al menos un producto")
+                    return
+                
+                # Calcular total
+                total = sum(p['cantidad'] * p['precio_unitario'] for p in productos)
+                
+                data = {
+                    'numero_orden': numero_orden,
+                    'proveedor': proveedor,
+                    'tipo_materia': tipo_materia,
+                    'fecha_entrega': fecha_entrega.isoformat() if fecha_entrega else None,
+                    'productos': productos,
+                    'total': total,
+                    'observaciones': observaciones,
+                    'usuario_creacion': st.session_state.user_data.get('id', ''),
+                    'estado': 'pendiente'
+                }
+                
+                resultado = guardar_compra(data)
+                if resultado:
+                    st.success(f"✅ Orden de compra {numero_orden} generada exitosamente")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ Error al generar la orden de compra")
+    
+    # Lista de compras
+    st.markdown("### 📋 Compras Registradas")
+    
+    fecha_hoy = date.today().isoformat()
+    compras = get_compras(fecha_hoy, fecha_hoy)
+    
+    if compras:
+        df = pd.DataFrame(compras)
+        
+        # Mostrar tabla simplificada
+        display_cols = ['numero_orden', 'proveedor', 'tipo_materia', 'total']
+        if all(col in df.columns for col in display_cols):
+            df_display = df[display_cols].copy()
+            df_display['total'] = df_display['total'].apply(lambda x: f"Bs. {x:,.2f}")
+            df_display['tipo_materia'] = df_display['tipo_materia'].apply(
+                lambda x: {
+                    'basica': '🥩 Básica',
+                    'intermedia': '🧂 Intermedia',
+                    'extra': '🧁 Extra'
+                }.get(x, x)
+            )
+            
+            st.dataframe(
+                df_display,
+                column_config={
+                    "numero_orden": "N° Orden",
+                    "proveedor": "Proveedor",
+                    "tipo_materia": "Tipo",
+                    "total": "Total"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.info("📝 No hay compras registradas. Genera tu primera orden de compra usando el formulario de arriba.")
+
+# ==================== TAB 5: BALANCE DIARIO ====================
+def mostrar_balance_diario():
+    """Muestra el balance diario y configuración de tasa"""
+    
+    st.markdown("### 📋 Balance Diario")
+    
+    fecha_hoy = date.today().isoformat()
+    tasa_actual = get_tasa_cambio(fecha_hoy)
+    balance = get_balance_diario(fecha_hoy)
+    
+    # Configurar tasa de cambio
+    with st.expander("💱 Configurar Tasa de Cambio", expanded=True):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            nueva_tasa = st.number_input(
+                "Tasa de Cambio (Bs/$)",
+                value=float(tasa_actual) if tasa_actual > 0 else 621.52,
+                min_value=0.01,
+                step=0.01,
+                format="%.2f"
+            )
+        
+        with col2:
+            if st.button("💾 Guardar Tasa", use_container_width=True):
+                guardar_tasa_cambio(nueva_tasa, fecha_hoy)
+                st.success(f"✅ Tasa guardada: {nueva_tasa:,.2f} Bs/$")
+                st.rerun()
+    
+    # Iniciar balance del día
+    if not balance:
+        with st.expander("🚀 Iniciar Balance del Día", expanded=True):
+            st.warning("⚠️ No hay balance iniciado para hoy")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                balance_inicial_bs = st.number_input(
+                    "Balance Inicial en Bolívares (Bs)",
+                    value=0.0,
+                    step=10000.0,
+                    format="%.2f"
+                )
+            
+            with col2:
+                if tasa_actual > 0:
+                    equivalente_usd = balance_inicial_bs / tasa_actual
+                    st.metric("Equivalente en Dólares", f"${equivalente_usd:,.2f}")
+            
+            if st.button("🚀 Iniciar Balance", use_container_width=True):
+                balance_data = {
+                    'fecha': fecha_hoy,
+                    'tasa_cambio': tasa_actual,
+                    'balance_inicial_bs': balance_inicial_bs,
+                    'balance_inicial_usd': balance_inicial_bs / tasa_actual if tasa_actual > 0 else 0,
+                    'transacciones': [],
+                    'total_ingresos_bs': 0,
+                    'total_egresos_bs': 0,
+                    'total_ingresos_usd': 0,
+                    'total_egresos_usd': 0,
+                    'balance_final_bs': balance_inicial_bs,
+                    'balance_final_usd': balance_inicial_bs / tasa_actual if tasa_actual > 0 else 0,
+                    'detalle_monedas': {
+                        'efectivo_bs': balance_inicial_bs,
+                        'efectivo_usd': 0,
+                        'banco_bs': 0,
+                        'banco_usd': 0
+                    },
+                    'ajuste_cambiario_bs': 0,
+                    'ajuste_cambiario_usd': 0,
+                    'generado_por': st.session_state.user_data.get('nombre', 'Sistema'),
+                    'fecha_generacion': datetime.now().isoformat()
+                }
+                
+                guardar_balance_diario(balance_data)
+                st.success("✅ Balance iniciado exitosamente")
+                st.balloons()
+                st.rerun()
+    else:
+        # Mostrar balance actual
+        st.success(f"✅ Balance iniciado para hoy")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(
+                "Balance Inicial",
+                f"Bs. {balance.get('balance_inicial_bs', 0):,.2f}"
+            )
+        with col2:
+            st.metric(
+                "Ingresos",
+                f"Bs. {balance.get('total_ingresos_bs', 0):,.2f}"
+            )
+        with col3:
+            st.metric(
+                "Balance Final",
+                f"Bs. {balance.get('balance_final_bs', 0):,.2f}"
+            )
+        
+        # Mostrar transacciones recientes
+        transacciones = balance.get('transacciones', [])
+        if transacciones:
+            st.subheader("📋 Últimas Transacciones")
+            df = pd.DataFrame(transacciones[-5:])
+            st.dataframe(
+                df[['fecha', 'descripcion', 'categoria', 'monto_bs']],
+                column_config={
+                    "fecha": "Fecha",
                     "descripcion": "Descripción",
                     "categoria": "Categoría",
-                    "monto": "Monto"
+                    "monto_bs": "Monto (Bs.)"
                 },
                 use_container_width=True,
                 hide_index=True
             )
         else:
-            st.info("No hay transacciones recientes")
-    else:
-        st.info("No hay balance registrado para hoy")
+            st.info("No hay transacciones registradas hoy")
 
-# ==================== FUNCIÓN PARA DATOS DE EJEMPLO ====================
-def cargar_datos_ejemplo(fecha_str):
-    """Carga datos de ejemplo para pruebas"""
-    from utils.database import guardar_tasa_cambio, guardar_balance_diario
-    
-    st.info("📝 Cargando datos de ejemplo...")
-    
-    # Configurar tasa
-    tasa = 621.52
-    guardar_tasa_cambio(tasa, fecha_str)
-    
-    # Crear balance inicial
-    balance_data = {
-        'fecha': fecha_str,
-        'tasa_cambio': tasa,
-        'balance_inicial_bs': 500000,
-        'balance_inicial_usd': 500000 / tasa if tasa > 0 else 0,
-        'transacciones': [
-            {
-                'id': '1',
-                'fecha': fecha_str,
-                'descripcion': 'Venta del día',
-                'categoria': 'Ventas',
-                'subcategoria': 'Venta Efectivo Bs',
-                'detalle': 'Cliente: Juan Pérez',
-                'tipo': 'ingreso',
-                'monto_bs': 244000,
-                'monto_usd': 244000 / tasa if tasa > 0 else 0,
-                'saldo_bs': 744000,
-                'saldo_usd': 744000 / tasa if tasa > 0 else 0,
-                'tasa_aplicada': tasa
-            },
-            {
-                'id': '2',
-                'fecha': fecha_str,
-                'descripcion': 'Alquiler local',
-                'categoria': 'Gastos Administrativos',
-                'subcategoria': 'Alquiler',
-                'detalle': 'Contrato 2026',
-                'tipo': 'egreso',
-                'monto_bs': 150000,
-                'monto_usd': 150000 / tasa if tasa > 0 else 0,
-                'saldo_bs': 594000,
-                'saldo_usd': 594000 / tasa if tasa > 0 else 0,
-                'tasa_aplicada': tasa
-            }
-        ],
-        'total_ingresos_bs': 244000,
-        'total_egresos_bs': 150000,
-        'balance_final_bs': 594000,
-        'balance_final_usd': 594000 / tasa if tasa > 0 else 0,
-        'detalle_monedas': {
-            'efectivo_bs': 594000,
-            'efectivo_usd': 0,
-            'banco_bs': 0,
-            'banco_usd': 0
-        },
-        'ajuste_cambiario_bs': 0,
-        'ajuste_cambiario_usd': 0,
-        'generado_por': st.session_state.user_data.get('nombre', 'Sistema'),
-        'fecha_generacion': datetime.now().isoformat()
-    }
-    
-    guardar_balance_diario(balance_data)
-    st.success("✅ Datos de ejemplo cargados exitosamente")
-    st.balloons()
+# ==================== PUNTO DE ENTRADA ====================
+# Esta función show() es la que se llama desde app.py
+# Ya está definida al inicio del archivo
