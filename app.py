@@ -159,19 +159,21 @@ def main():
                 logout()
                 st.rerun()
         
-        # Cargar página seleccionada
+        # En app.py, actualiza esta parte:
+
         if selected == "Inicio":
-            from pages import 1_Inicio as page
+            from pages.inicio import show as page_show
         elif selected == "Inventario":
-            from pages import 2_Inventario as page
+            from pages.inventario import show as page_show
         elif selected == "Compras":
-            from pages import 3_Compras as page
+            from pages.compras import show as page_show
         elif selected == "Ventas":
-            from pages import 4_Ventas as page
+            from pages.ventas import show as page_show
         elif selected == "Balance Diario":
-            from pages import 5_Balance_Diario as page
-        
-        page.show()
+            from pages.balance_diario import show as page_show
+
+# Luego llamas a la función
+page_show()
 
 if __name__ == "__main__":
     main()
