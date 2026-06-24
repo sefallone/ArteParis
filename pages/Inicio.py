@@ -15,6 +15,7 @@ from utils.database import (
 
 def show():
     """Función principal que se ejecuta cuando se selecciona la página Inicio"""
+    st.write("✅ Página de Inicio cargada correctamente")
     
     # ==================== HEADER ====================
     st.markdown("""
