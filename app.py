@@ -159,22 +159,24 @@ def main():
                 logout()
                 st.rerun()
         
-        # Cargar página seleccionada - CORREGIDO
+        # ==================== IMPORTACIONES CORREGIDAS ====================
+        # Cargar página seleccionada con los nombres exactos de los archivos
         if selected == "Inicio":
-            from pages.inicio import show
+            from pages.Inicio import show
             show()
         elif selected == "Inventario":
-            from pages.inventario import show
+            from pages.Inventario import show
             show()
         elif selected == "Compras":
-            from pages.compras import show
+            from pages.Compras import show
             show()
         elif selected == "Ventas":
-            from pages.ventas import show
+            from pages.Ventas import show
             show()
         elif selected == "Balance Diario":
-            from pages.balance_diario import show
+            from pages.Balance_Diario import show
             show()
 
 if __name__ == "__main__":
     main()
+    
