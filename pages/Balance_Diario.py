@@ -1,4 +1,4 @@
-# pages/balance_diario.py
+# pages/Balance_Diario.py - Versión corregida
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
@@ -6,7 +6,8 @@ import plotly.express as px
 from utils.database import (
     get_balance_diario, guardar_balance_diario,
     get_tasa_cambio, guardar_tasa_cambio,
-    get_ventas, get_compras
+    get_ventas, get_compras,
+    clear_cache
 )
 import uuid
 
@@ -51,7 +52,6 @@ CATEGORIAS = {
 }
 
 def show():
-    st.write("✅ Página de Inicio cargada correctamente")
     st.markdown("""
         <div class="main-header">
             <h1>📋 Balance Diario - Control Dual</h1>
@@ -93,6 +93,7 @@ def mostrar_balance():
             generar_balance_diario(fecha_seleccionada)
     with col3:
         if st.button("📋 Actualizar"):
+            clear_cache()
             st.rerun()
     
     fecha_str = fecha_seleccionada.isoformat()
@@ -104,14 +105,19 @@ def mostrar_balance():
         st.info(f"📝 No hay balance para {fecha_seleccionada.strftime('%d/%m/%Y')}")
         
         # Botón para iniciar balance
-        if st.button("🚀 Iniciar Balance del Día", use_container_width=True):
-            balance_inicial_bs = st.number_input("Balance Inicial en Bs", value=0.0, step=10000.0)
-            balance_inicial_usd = st.number_input("Balance Inicial en $", value=0.0, step=100.0)
+        with st.expander("🚀 Iniciar Balance del Día", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                balance_inicial_bs = st.number_input("Balance Inicial en Bs", value=0.0, step=10000.0)
+            with col2:
+                if tasa > 0:
+                    st.metric("Equivalente en $", f"${balance_inicial_bs / tasa:,.2f}")
             
-            if st.button("Confirmar Inicio"):
-                nuevo_balance = crear_balance_inicial(fecha_str, tasa, balance_inicial_bs, balance_inicial_usd)
+            if st.button("Confirmar Inicio", use_container_width=True):
+                nuevo_balance = crear_balance_inicial(fecha_str, tasa, balance_inicial_bs, balance_inicial_bs / tasa if tasa > 0 else 0)
                 guardar_balance_diario(nuevo_balance)
                 st.success("✅ Balance iniciado")
+                clear_cache()
                 st.rerun()
         return
     
@@ -236,7 +242,7 @@ def mostrar_resumen_dual(balance, tasa):
                 st.write(f"Equivalente: ${total_bs / tasa:,.2f}" if tasa > 0 else "")
 
 def mostrar_libro_mayor_dual(balance):
-    """Muestra el libro mayor en formato dual"""
+    """Muestra el libro mayor en formato dual - CORREGIDO"""
     
     st.markdown("---")
     st.subheader("📋 Libro Mayor (Dual)")
@@ -249,6 +255,24 @@ def mostrar_libro_mayor_dual(balance):
     
     # Crear DataFrame
     df = pd.DataFrame(transacciones)
+    
+    # ✅ VERIFICAR Y COMPLETAR CAMPOS FALTANTES
+    # Si no existe la columna 'moneda', crearla con valor por defecto
+    if 'moneda' not in df.columns:
+        df['moneda'] = 'Mixto'  # Valor por defecto
+    
+    # Asegurar que todas las columnas necesarias existan
+    columnas_requeridas = ['fecha', 'descripcion', 'moneda', 'monto_bs', 'monto_usd', 'tasa_aplicada', 'saldo_bs', 'saldo_usd']
+    for col in columnas_requeridas:
+        if col not in df.columns:
+            if col in ['monto_bs', 'saldo_bs']:
+                df[col] = 0.0
+            elif col in ['monto_usd', 'saldo_usd']:
+                df[col] = 0.0
+            elif col == 'tasa_aplicada':
+                df[col] = balance.get('tasa_cambio', 621.52)
+            else:
+                df[col] = 'N/A'
     
     # Ordenar por categoría
     df = df.sort_values(['categoria', 'fecha'])
@@ -265,32 +289,46 @@ def mostrar_libro_mayor_dual(balance):
         
         with st.expander(f"📁 {categoria} (Bs. {total_bs:,.2f} | ${total_usd:,.2f})", expanded=True):
             
-            # Mostrar tabla
-            display_df = df_cat[['fecha', 'descripcion', 'moneda', 'monto_bs', 'monto_usd', 'tasa_aplicada', 'saldo_bs', 'saldo_usd']].copy()
-            display_df['fecha'] = pd.to_datetime(display_df['fecha']).dt.strftime('%d/%m/%Y')
+            # Mostrar tabla - usando solo columnas que existen
+            columnas_display = ['fecha', 'descripcion', 'moneda', 'monto_bs', 'monto_usd', 'tasa_aplicada', 'saldo_bs', 'saldo_usd']
+            columnas_existentes = [col for col in columnas_display if col in df_cat.columns]
             
-            # Formatear
-            display_df['monto_bs'] = display_df['monto_bs'].apply(lambda x: f"Bs. {x:,.2f}")
-            display_df['monto_usd'] = display_df['monto_usd'].apply(lambda x: f"${x:,.2f}")
-            display_df['saldo_bs'] = display_df['saldo_bs'].apply(lambda x: f"Bs. {x:,.2f}")
-            display_df['saldo_usd'] = display_df['saldo_usd'].apply(lambda x: f"${x:,.2f}")
-            display_df['tasa_aplicada'] = display_df['tasa_aplicada'].apply(lambda x: f"{x:,.2f}")
-            
-            st.dataframe(
-                display_df,
-                column_config={
-                    "fecha": "Fecha",
-                    "descripcion": "Descripción",
-                    "moneda": "Moneda",
-                    "monto_bs": "Monto Bs",
-                    "monto_usd": "Monto $",
-                    "tasa_aplicada": "Tasa",
-                    "saldo_bs": "Saldo Bs",
-                    "saldo_usd": "Saldo $"
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+            if columnas_existentes:
+                display_df = df_cat[columnas_existentes].copy()
+                display_df['fecha'] = pd.to_datetime(display_df['fecha']).dt.strftime('%d/%m/%Y')
+                
+                # Formatear
+                for col in ['monto_bs', 'saldo_bs']:
+                    if col in display_df.columns:
+                        display_df[col] = display_df[col].apply(lambda x: f"Bs. {x:,.2f}" if pd.notna(x) else "Bs. 0.00")
+                
+                for col in ['monto_usd', 'saldo_usd']:
+                    if col in display_df.columns:
+                        display_df[col] = display_df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+                
+                if 'tasa_aplicada' in display_df.columns:
+                    display_df['tasa_aplicada'] = display_df['tasa_aplicada'].apply(lambda x: f"{x:,.2f}" if pd.notna(x) else "0.00")
+                
+                if 'moneda' in display_df.columns:
+                    display_df['moneda'] = display_df['moneda'].fillna('Mixto')
+                
+                st.dataframe(
+                    display_df,
+                    column_config={
+                        "fecha": "Fecha",
+                        "descripcion": "Descripción",
+                        "moneda": "Moneda",
+                        "monto_bs": "Monto Bs",
+                        "monto_usd": "Monto $",
+                        "tasa_aplicada": "Tasa",
+                        "saldo_bs": "Saldo Bs",
+                        "saldo_usd": "Saldo $"
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.write("No hay datos para mostrar")
 
 def registrar_transaccion():
     """Registra una transacción en ambas monedas"""
@@ -375,6 +413,7 @@ def registrar_transaccion():
             
             st.success("✅ Transacción registrada exitosamente")
             st.balloons()
+            clear_cache()
             st.rerun()
 
 def configurar_tasa():
@@ -405,6 +444,7 @@ def configurar_tasa():
             
             # Registrar ajuste cambiario
             registrar_ajuste_cambiario(fecha_str, nueva_tasa)
+            clear_cache()
             st.rerun()
     
     with col2:
@@ -472,6 +512,7 @@ def guardar_transaccion_dual(fecha, transaccion_data):
         nuevo_saldo_bs = ultimo_saldo_bs + monto_bs
         nuevo_saldo_usd = ultimo_saldo_usd + monto_usd
     
+    # ✅ Incluir el campo 'moneda' en la transacción
     transaccion = {
         'id': str(uuid.uuid4()),
         'fecha': fecha_str,
@@ -480,7 +521,7 @@ def guardar_transaccion_dual(fecha, transaccion_data):
         'categoria': transaccion_data['categoria'],
         'subcategoria': transaccion_data['subcategoria'],
         'tipo': tipo,
-        'moneda': transaccion_data['moneda'],
+        'moneda': transaccion_data['moneda'],  # ✅ Campo agregado
         'monto_bs': monto_bs,
         'monto_usd': monto_usd,
         'tasa_aplicada': transaccion_data['tasa_aplicada'],
@@ -620,6 +661,7 @@ def generar_balance_diario(fecha):
     
     st.success(f"✅ Balance generado para {fecha.strftime('%d/%m/%Y')}")
     st.balloons()
+    clear_cache()
     st.rerun()
 
 def reportes_balance():
