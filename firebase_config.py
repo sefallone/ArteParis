@@ -6,6 +6,14 @@ import json
 firebase_app = None
 db = None
 
+def get_db():
+    """Retorna la instancia de Firestore"""
+    global db
+    if db is None:
+        # Intentar inicializar si no está
+        init_firebase()
+    return db
+
 def init_firebase():
     global firebase_app, db
     
