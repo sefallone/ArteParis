@@ -5,6 +5,8 @@ from utils.database import get_productos, guardar_producto, get_tasa_cambio, con
 import plotly.express as px
 
 def show():
+
+    st.write("✅ Página de Inventario cargada correctamente")
     st.markdown("""
         <div class="main-header">
             <h1>📦 Gestión de Inventario</h1>
