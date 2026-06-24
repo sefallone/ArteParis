@@ -12,14 +12,31 @@ def init_auth():
 def login(username, password):
     try:
         db = get_db()
+        
+        # Verificar que la base de datos esté conectada
+        if db is None:
+            st.error("❌ Error de conexión a la base de datos")
+            return False
+        
         # Buscar usuario en Firestore
         users_ref = db.collection('usuarios')
         query = users_ref.where('username', '==', username).limit(1)
         docs = query.get()
         
+        # Verificar si se encontró el usuario
+        if not docs:
+            st.error(f"❌ Usuario '{username}' no encontrado")
+            return False
+        
         for doc in docs:
             user_data = doc.to_dict()
-            # Verificar contraseña (hash simple para demo)
+            
+            # Debug: Mostrar información (solo en desarrollo)
+            print(f"🔍 Usuario encontrado: {username}")
+            print(f"🔍 Hash en BD: {user_data.get('password_hash', 'NO HASH')}")
+            print(f"🔍 Hash ingresado: {hashlib.sha256(password.encode()).hexdigest()}")
+            
+            # Verificar contraseña
             if verify_password(password, user_data.get('password_hash', '')):
                 st.session_state.authenticated = True
                 st.session_state.user_data = {
@@ -32,14 +49,20 @@ def login(username, password):
                 # Registrar login
                 registrar_login(doc.id)
                 return True
+            else:
+                st.error("❌ Contraseña incorrecta")
+                return False
         
         return False
     except Exception as e:
-        print(f"Error en login: {e}")
+        st.error(f"❌ Error en login: {str(e)}")
+        print(f"Error detallado: {e}")
         return False
 
 def verify_password(password, hashed):
-    # Hash simple para demo (usar bcrypt en producción)
+    """Verifica la contraseña usando SHA256"""
+    if not hashed:
+        return False
     return hashlib.sha256(password.encode()).hexdigest() == hashed
 
 def hash_password(password):
@@ -48,11 +71,12 @@ def hash_password(password):
 def registrar_login(user_id):
     try:
         db = get_db()
-        db.collection('logins').add({
-            'user_id': user_id,
-            'timestamp': datetime.datetime.now(),
-            'fecha': datetime.date.today().isoformat()
-        })
+        if db:
+            db.collection('logins').add({
+                'user_id': user_id,
+                'timestamp': datetime.datetime.now(),
+                'fecha': datetime.date.today().isoformat()
+            })
     except Exception as e:
         print(f"Error registrando login: {e}")
 
@@ -68,35 +92,3 @@ def check_permisos(jerarquia_requerida):
 
 def get_current_user():
     return st.session_state.user_data
-
-# utils/auth.py - Agregar esta función
-def crear_usuario(username, password, nombre, email):
-    """Crea un nuevo usuario en Firebase"""
-    try:
-        db = get_db()
-        
-        # Verificar que el usuario no exista
-        users_ref = db.collection('usuarios')
-        query = users_ref.where('username', '==', username).limit(1)
-        docs = query.get()
-        
-        if len(list(docs)) > 0:
-            return {'success': False, 'message': 'El usuario ya existe'}
-        
-        # Crear usuario
-        user_data = {
-            'username': username,
-            'password_hash': hash_password(password),
-            'nombre': nombre,
-            'email': email,
-            'rol': 'usuario',
-            'jerarquia': 1,
-            'fecha_creacion': datetime.now()
-        }
-        
-        doc_ref = db.collection('usuarios').add(user_data)
-        
-        return {'success': True, 'message': 'Usuario creado exitosamente', 'id': doc_ref[1].id}
-    
-    except Exception as e:
-        return {'success': False, 'message': f'Error: {str(e)}'}
