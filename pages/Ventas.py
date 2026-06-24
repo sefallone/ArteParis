@@ -5,6 +5,7 @@ from utils.database import guardar_venta, get_ventas, get_tasa_cambio, convertir
 import plotly.express as px
 
 def show():
+    st.write("✅ Página de Ventas cargada correctamente")
     st.markdown("""
         <div class="main-header">
             <h1>💰 Gestión de Ventas</h1>
