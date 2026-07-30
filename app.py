@@ -1,257 +1,156 @@
+# app.py - Punto de entrada de la aplicación
 import streamlit as st
-from streamlit_option_menu import option_menu
-from utils.auth import init_auth, login, logout
-from firebase_config import init_firebase
-import os
-from dotenv import load_dotenv
+from config import Config
+from services.firebase_service import FirebaseService
+from services.auth_service import AuthService
+from components.header import render_header
+from components.sidebar import render_sidebar
+from components.tasa_modal import render_tasa_modal
 
-# Cargar variables de entorno
-load_dotenv()
-
-# Configuración de la página
+# ============ CONFIGURACIÓN DE PÁGINA ============
 st.set_page_config(
-    page_title="DELICAFE - Sistema de Gestión",
+    page_title=Config.APP_NAME,
     page_icon="☕",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Inicializar Firebase
-init_firebase()
-
-# Inicializar autenticación
-init_auth()
-
-# CSS personalizado con colores del logo
+# ============ CSS GLOBAL ============
 st.markdown("""
     <style>
-        /* Colores basados en el logo */
-        :root {
-            --primary-color: #8B4513;
-            --secondary-color: #D2691E;
-            --accent-color: #F5DEB3;
-            --dark-color: #2C1810;
-            --light-color: #FFF8F0;
-        }
-        
-        /* Estilos generales */
+        /* Reset y estilos globales */
         .stApp {
-            background-color: var(--light-color);
+            background-color: #faf6f0;
         }
         
-        .main-header {
-            background-color: var(--dark-color);
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
+        /* Contenedor principal */
+        .main {
+            padding: 0 1rem;
         }
         
-        .main-header h1 {
-            color: var(--accent-color);
-            font-family: 'Georgia', serif;
-            text-align: center;
-        }
-        
-        .metric-card {
-            background-color: white;
+        /* Estilo para tarjetas */
+        .card {
+            background: white;
+            border-radius: 12px;
             padding: 1.5rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-left: 4px solid var(--primary-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e8ddd0;
+            margin-bottom: 1rem;
         }
         
-        .metric-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: var(--primary-color);
+        .card-title {
+            color: #3d2218;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
         }
         
-        .metric-label {
-            color: var(--dark-color);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        /* Sidebar personalizado */
+        [data-testid="stSidebar"] {
+            background-color: #1a0e0a;
+            border-right: 1px solid #3d2218;
         }
         
-        /* Botones personalizados */
+        [data-testid="stSidebar"] .stRadio label {
+            color: #d4a574 !important;
+            font-size: 0.9rem !important;
+            padding: 0.4rem 0.8rem !important;
+            border-radius: 6px !important;
+            transition: all 0.2s !important;
+        }
+        
+        [data-testid="stSidebar"] .stRadio label:hover {
+            background: #2c1810 !important;
+        }
+        
+        [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] {
+            color: #f5deb3 !important;
+        }
+        
+        /* Botones */
         .stButton > button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 0.5rem 1.5rem;
-            border-radius: 5px;
-            transition: all 0.3s;
+            background: #8b5a3c !important;
+            color: #f5deb3 !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            transition: all 0.3s !important;
         }
         
         .stButton > button:hover {
-            background-color: var(--secondary-color);
-            transform: translateY(-2px);
+            background: #a06b4a !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(139, 90, 60, 0.3) !important;
         }
         
-        /* Sidebar personalizada */
-        .css-1d391kg {
-            background-color: var(--dark-color);
+        /* Métricas */
+        [data-testid="stMetricValue"] {
+            color: #3d2218 !important;
+            font-weight: 700 !important;
         }
         
-        .css-1d391kg .stSelectbox label {
-            color: var(--accent-color);
+        [data-testid="stMetricLabel"] {
+            color: #8b5a3c !important;
+            font-size: 0.8rem !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
         }
-    </style>
-""", unsafe_allow_html=True)
-
-def mostrar_diagnostico():
-    """Muestra información de diagnóstico en el sidebar"""
-    
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 🔧 Diagnóstico")
         
-        try:
-            from firebase_config import get_db
-            import hashlib
-            
-            db = get_db()
-            
-            # 1. Verificar conexión
-            if db is None:
-                st.error("❌ Error: No se pudo conectar a Firebase")
-                st.info("💡 Verifica que FIREBASE_SERVICE_ACCOUNT esté configurada en Render")
-                return
-            else:
-                st.success("✅ Conexión a Firebase OK")
-            
-            # 2. Verificar colección 'usuarios'
-            try:
-                users_ref = db.collection('usuarios')
-                query = users_ref.where('username', '==', 'admin').limit(1)
-                docs = query.get()
-                
-                if not docs:
-                    st.warning("⚠️ Usuario 'admin' no encontrado")
-                    st.info("💡 Crea el usuario en Firebase Console → Firestore → Colección 'usuarios'")
-                    return
-                
-                # 3. Mostrar datos del usuario
-                for doc in docs:
-                    user_data = doc.to_dict()
-                    
-                    st.write("**📝 Datos del usuario:**")
-                    st.write(f"- Username: `{user_data.get('username')}`")
-                    st.write(f"- Nombre: `{user_data.get('nombre')}`")
-                    st.write(f"- Rol: `{user_data.get('rol')}`")
-                    
-                    # 4. Verificar hash de contraseña
-                    stored_hash = user_data.get('password_hash', '')
-                    test_hash = hashlib.sha256('admin123'.encode()).hexdigest()
-                    
-                    st.write("**🔑 Verificación de contraseña:**")
-                    st.write(f"- Hash almacenado: `{stored_hash[:20]}...`")
-                    st.write(f"- Hash esperado (admin123): `{test_hash[:20]}...`")
-                    
-                    if stored_hash == test_hash:
-                        st.success("✅ Hash de contraseña coincide")
-                        st.info("💡 Deberías poder iniciar sesión con: admin / admin123")
-                    else:
-                        st.error("❌ Hash de contraseña NO coincide")
-                        st.info("💡 Actualiza el hash en Firebase Console con: `8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918`")
-                        
-                        # Mostrar opción para actualizar automáticamente
-                        if st.button("🔧 Actualizar hash automáticamente"):
-                            try:
-                                doc.reference.update({'password_hash': test_hash})
-                                st.success("✅ Hash actualizado correctamente")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Error al actualizar: {e}")
-                
-            except Exception as e:
-                st.error(f"❌ Error al leer la colección: {e}")
-                st.info("💡 Verifica que la colección 'usuarios' exista en Firestore")
-                
-        except Exception as e:
-            st.error(f"❌ Error general: {e}")
-
-
-def main():
-    # Mostrar logo en sidebar
-    if os.path.exists("assets/logo_nuevo.jpg"):
-        st.sidebar.image("assets/logo_nuevo.jpg", use_column_width=True)
-
-    mostrar_diagnostico()
-    
-    # Estado de autenticación
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    
-    if not st.session_state.authenticated:
-        # Mostrar login
-        with st.container():
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                st.markdown("""
-                    <div style="text-align: center; padding: 2rem;">
-                        <h1 style="color: #8B4513;">☕ DELICAFE</h1>
-                        <h3 style="color: #2C1810;">Sistema de Gestión</h3>
-                        <hr>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                with st.form("login_form"):
-                    username = st.text_input("Usuario")
-                    password = st.text_input("Contraseña", type="password")
-                    submit = st.form_submit_button("Iniciar Sesión", use_container_width=True)
-                    
-                    if submit:
-                        if login(username, password):
-                            st.rerun()
-                        else:
-                            st.error("Credenciales inválidas")
-    else:
-        # Menú de navegación
-        with st.sidebar:
-            st.markdown(f"""
-                <div style="text-align: center; padding: 1rem;">
-                    <p style="color: #F5DEB3;">Bienvenido, {st.session_state.user_data.get('nombre', 'Usuario')}</p>
-                    <p style="color: #F5DEB3; font-size: 0.8rem;">Rol: {st.session_state.user_data.get('rol', '')}</p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            selected = option_menu(
-                menu_title=None,
-                options=["Inicio", "Inventario", "Compras", "Ventas", "Balance Diario"],
-                icons=["house", "box", "cart", "cash", "clipboard-data"],
-                menu_icon="cast",
-                default_index=0,
-                styles={
-                    "container": {"padding": "0!important", "background-color": "#2C1810"},
-                    "icon": {"color": "#F5DEB3", "font-size": "20px"},
-                    "nav-link": {"color": "#F5DEB3", "font-size": "16px", "text-align": "left", "margin": "0px"},
-                    "nav-link-selected": {"background-color": "#8B4513"},
-                }
-            )
-            
-            if st.button("Cerrar Sesión", use_container_width=True):
-                logout()
-                st.rerun()
+        /* Inputs */
+        .stTextInput input, .stNumberInput input, .stSelectbox select {
+            border: 1px solid #d4c5b8 !important;
+            border-radius: 8px !important;
+            background: white !important;
+        }
         
-        # ==================== IMPORTACIONES CORREGIDAS ====================
-        # Cargar página seleccionada con los nombres exactos de los archivos
-        if selected == "Inicio":
-            from pages.Inicio import show
-            show()
-        elif selected == "Inventario":
-            from pages.Inventario import show
-            show()
-        elif selected == "Compras":
-            from pages.Compras import show
-            show()
-        elif selected == "Ventas":
-            from pages.Ventas import show
-            show()
-        elif selected == "Balance Diario":
-            from pages.Balance_Diario import show
-            show()
-
-if __name__ == "__main__":
-    main()
-    
+        .stTextInput input:focus, .stNumberInput input:focus {
+            border-color: #8b5a3c !important;
+            box-shadow: 0 0 0 2px rgba(139, 90, 60, 0.2) !important;
+        }
+        
+        /* Tablas */
+        .stDataFrame {
+            border-radius: 8px !important;
+            border: 1px solid #e8ddd0 !important;
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px !important;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background: #f5ede6 !important;
+            border-radius: 8px 8px 0 0 !important;
+            padding: 0.5rem 1.2rem !important;
+            color: #5c3324 !important;
+            font-weight: 500 !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: #8b5a3c !important;
+            color: #f5deb3 !important;
+        }
+        
+        /* Expander */
+        .streamlit-expanderHeader {
+            background: #f5ede6 !important;
+            border-radius: 8px !important;
+            color: #3d2218 !important;
+            font-weight: 600 !important;
+        }
+        
+        .streamlit-expanderContent {
+            border: 1px solid #e8ddd0 !important;
+            border-radius: 0 0 8px 8px !important;
+            padding: 1rem !important;
+        }
+        
+        /* Alerts */
+        .stAlert {
+            border-radius: 8px !important;
+            border-left: 4px solid #8b5a3c !important;
+        }
+        
+        /* Selectbox en sidebar */
+        [data-testid="stSidebar"] .stSelect
