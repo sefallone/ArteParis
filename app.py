@@ -153,4 +153,107 @@ st.markdown("""
         }
         
         /* Selectbox en sidebar */
-        [data-testid="stSidebar"] .stSelect
+        [data-testid="stSidebar"] .stSelectbox label {
+            color: #d4a574 !important;
+        }
+        
+        [data-testid="stSidebar"] .stSelectbox select {
+            background: #2c1810 !important;
+            color: #f5deb3 !important;
+            border: 1px solid #5c3324 !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# ============ INICIALIZACIÓN ============
+def init_session_state():
+    """Inicializa las variables de sesión"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'user_data' not in st.session_state:
+        st.session_state.user_data = None
+    if 'usuario' not in st.session_state:
+        st.session_state.usuario = None
+    if 'tasa_actual' not in st.session_state:
+        st.session_state.tasa_actual = 0
+    if 'necesita_tasa' not in st.session_state:
+        st.session_state.necesita_tasa = False
+
+# ============ MAIN ============
+def main():
+    # Inicializar
+    init_session_state()
+    
+    # Inicializar Firebase
+    FirebaseService()
+    
+    # ============ LOGIN ============
+    if not st.session_state.authenticated:
+        # Página de login
+        st.markdown("""
+            <div style="max-width: 400px; margin: 3rem auto; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">☕</div>
+                <h1 style="color: #3d2218; font-family: 'Georgia', serif;">Arte París</h1>
+                <p style="color: #8b5a3c; font-weight: 300; letter-spacing: 2px;">DELICAFE</p>
+                <p style="color: #5c3324; font-size: 0.8rem; margin-bottom: 2rem;">Gestión Administrativa</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        with st.form("login_form", clear_on_submit=True):
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                username = st.text_input("Usuario", placeholder="Ingresa tu usuario")
+                password = st.text_input("Contraseña", type="password", placeholder="Ingresa tu contraseña")
+                submitted = st.form_submit_button("Iniciar Sesión", use_container_width=True)
+                
+                if submitted:
+                    if username and password:
+                        auth_service = AuthService()
+                        if auth_service.login(username, password):
+                            st.rerun()
+                    else:
+                        st.error("❌ Por favor ingresa usuario y contraseña")
+        
+        return
+    
+    # ============ VERIFICAR TASA DEL DÍA ============
+    if not render_tasa_modal():
+        return
+    
+    # ============ APLICACIÓN PRINCIPAL ============
+    # Renderizar header
+    render_header()
+    
+    # Renderizar sidebar y obtener página seleccionada
+    pagina = render_sidebar()
+    
+    # ============ CARGAR PÁGINA ============
+    if pagina == "Inicio":
+        from pages.inicio import show
+        show()
+    elif pagina == "Inventario":
+        from pages.inventario import show
+        show()
+    elif pagina == "Ventas":
+        from pages.ventas import show
+        show()
+    elif pagina == "Compras":
+        from pages.compras import show
+        show()
+    elif pagina == "Balance Diario":
+        from pages.balance import show
+        show()
+    elif pagina == "Nómina":
+        st.info("📋 Módulo de Nómina en construcción")
+    elif pagina == "Proveedores":
+        st.info("📋 Módulo de Proveedores en construcción")
+    elif pagina == "Clientes":
+        st.info("📋 Módulo de Clientes en construcción")
+    elif pagina == "Gerencia":
+        st.info("📋 Módulo de Gerencia en construcción")
+    else:
+        from pages.inicio import show
+        show()
+
+if __name__ == "__main__":
+    main()
